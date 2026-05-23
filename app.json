@@ -18,8 +18,13 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "navigationBar": {
+        "backgroundColor": "#FAF9F8",
+        "barStyle": "dark-content"
+      },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yosef.dscfmobile2"
     },
     "web": {
       "output": "static",
@@ -33,9 +38,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#FAF9F8",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#FAF9F8"
           }
         }
       ]

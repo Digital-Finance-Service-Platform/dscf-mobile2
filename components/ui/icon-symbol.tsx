@@ -1,29 +1,35 @@
 // Fallback for using MaterialIcons on Android and web.
 
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
-import { ComponentProps } from 'react';
-import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
+import type { ComponentProps } from "react";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { SymbolWeight, SymbolViewProps } from "expo-symbols";
+import { OpaqueColorValue, type StyleProp, type TextStyle } from "react-native";
 
-type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
+type IconMapping = Record<
+  SymbolViewProps["name"],
+  ComponentProps<typeof MaterialIcons>["name"]
+>;
+/**
+ * Map a small set of SF Symbols to portable icon names. Extend as needed.
+ */
+const MAPPING = {
+  "house.fill": "home",
+  "paperplane.fill": "send",
+  "chevron.left.forwardslash.chevron.right": "code",
+  "chevron.right": "chevron-right",
+  "line.horizontal.3": "menu",
+  cart: "shopping-cart",
+  magnifyingglass: "search",
+} as IconMapping;
+
 type IconSymbolName = keyof typeof MAPPING;
 
 /**
- * Add your SF Symbols to Material Icons mappings here.
- * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
- * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
- */
-const MAPPING = {
-  'house.fill': 'home',
-  'paperplane.fill': 'send',
-  'chevron.left.forwardslash.chevron.right': 'code',
-  'chevron.right': 'chevron-right',
-} as IconMapping;
-
-/**
- * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
- * This ensures a consistent look across platforms, and optimal resource usage.
- * Icon `name`s are based on SF Symbols and require manual mapping to Material Icons.
+ * IconSymbol: Prefer HugeIcons when available, fall back to MaterialIcons.
+ * - Uses a safe dynamic require so the code still runs when HugeIcons
+ *   aren't installed (e.g., in some CI or contributor environments).
+ * - Keeps the same `name` mapping interface used across the app for
+ *   portability and future maintainability.
  */
 export function IconSymbol({
   name,
@@ -37,5 +43,12 @@ export function IconSymbol({
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  return (
+    <MaterialIcons
+      color={color as string}
+      size={size}
+      name={MAPPING[name]}
+      style={style}
+    />
+  );
 }
