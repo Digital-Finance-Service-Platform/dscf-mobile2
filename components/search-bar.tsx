@@ -23,7 +23,7 @@ export function SearchBar({
         <MaterialIcons name="search" size={28} color="#5A413D" />
         <TextInput
           placeholder={placeholder}
-          placeholderTextColor="#5A413D"
+          placeholderTextColor="#000000"
           style={styles.searchText}
           value={value}
           onChangeText={onChangeText}
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     paddingRight: 64,
     height: 56,
   },
-  searchText: { marginLeft: 8, flex: 1, color: "#333", fontSize: 16 },
+  searchText: { marginLeft: 8, flex: 1, color: "#333", fontSize: 15 },
   filterButton: {
     position: "absolute",
     right: 12,

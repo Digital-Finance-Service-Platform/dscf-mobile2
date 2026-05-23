@@ -93,8 +93,8 @@ function AppHeader() {
     return null;
   }
 
-  const bg = "#0a1f44";
-  const iconColor = "#fff";
+  const bg = "#FAF9F8";
+  const iconColor = "#800000";
 
   return (
     <View style={[layoutStyles.header, { backgroundColor: bg }]}>
@@ -314,7 +314,7 @@ const layoutStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerIconSmall: { width: 140, height: 36, resizeMode: "contain" },
+  headerIconSmall: { width: "45%", height: "70%",  },
   badge: {
     position: "absolute",
     top: -6,

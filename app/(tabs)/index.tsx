@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     paddingBottom: 24,
+    marginTop: -13,
   },
   /* header is rendered in app/_layout.tsx */
   sectionHeaderSmall: { marginTop: 18, marginBottom: 8 },
