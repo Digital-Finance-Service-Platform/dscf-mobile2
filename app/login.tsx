@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 22,
     color: "#0a2f4a",
-    marginTop: -45,
+    marginTop: -65,
   },
   fieldLabel: {
     color: "#0a2f4a",
@@ -248,6 +248,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 210,
   },
   footerText: { color: "#6b6b6b" },
   signupLink: { color: "#0a7ea4", marginLeft: 6 },

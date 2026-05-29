@@ -253,6 +253,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 20,
   },
   footerText: { color: "#6b6b6b" },
   signinLink: { color: "#0a7ea4", marginLeft: 6 },

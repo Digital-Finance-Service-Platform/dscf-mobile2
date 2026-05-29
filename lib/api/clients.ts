@@ -202,7 +202,9 @@ export async function authLogout(): Promise<void> {
       );
     } finally {
       try {
-        console.log("[authLogout] finally - clearing tokens and resetting clients");
+        console.log(
+          "[authLogout] finally - clearing tokens and resetting clients",
+        );
       } catch (e) {}
       // clear local tokens and reset axios clients
       await clearTokens();
@@ -286,6 +288,37 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
     if (message.toLowerCase().includes("network")) {
       throw new Error(
         `Network error: could not reach auth server at ${AUTH_URL} — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function marketGetVisibleListings(
+  /**
+   * Fetch visible listings.
+   * Default: public (no bearer token). Pass `true` to use stored bearer token.
+   */
+  useAuth: boolean = false,
+): Promise<any> {
+  if (useAuth) {
+    return marketFetch(`/listings/visible`, { method: "GET" });
+  }
+
+  const url = `${MARKET_URL}/listings/visible`;
+  try {
+    const res = await fetch(url, { method: "GET" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = json?.message || `Request failed (status ${res.status})`;
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error: could not reach market server at ${MARKET_URL} — ${message}`,
       );
     }
     throw err;

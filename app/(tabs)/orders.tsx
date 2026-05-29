@@ -15,6 +15,7 @@ import { PageShell } from "@/components/page-shell";
 import { useCart } from "@/components/cart-context";
 import { useRouter } from "expo-router";
 import { ORDERS } from "@/data/orders";
+import { formatCurrency } from "@/lib/formatters";
 
 export const options = { headerShown: false };
 
@@ -157,9 +158,9 @@ export default function OrdersScreen() {
                 </ThemedText>
                 <ThemedText
                   type="title"
-                  style={{ marginTop: 6, fontSize: 18, color: '#800000' }}
+                  style={{ marginTop: 6, fontSize: 18, color: "#800000" }}
                 >
-                  ${item.total.toFixed(2)}
+                  {formatCurrency(item.total)}
                 </ThemedText>
               </View>
 
@@ -291,7 +292,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
-  
   },
   outlineBtn: {
     backgroundColor: "#fff",

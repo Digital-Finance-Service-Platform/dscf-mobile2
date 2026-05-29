@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
+import { formatCurrency } from "@/lib/formatters";
 
 interface OrderSummaryProps {
   subtotal: number;
@@ -32,7 +33,9 @@ export function OrderSummary({
 
   const SummaryTotal = ({ label, value }: { label: string; value: string }) => (
     <View style={compact ? styles.summaryTotalCompact : styles.summaryTotal}>
-      <ThemedText type={compact ? "defaultSemiBold" : "title"}>{label}</ThemedText>
+      <ThemedText type={compact ? "defaultSemiBold" : "title"}>
+        {label}
+      </ThemedText>
       <ThemedText
         type={compact ? "defaultSemiBold" : "defaultSemiBold2"}
         lightColor="#8a1d1d"
@@ -50,15 +53,13 @@ export function OrderSummary({
         </ThemedText>
       )}
 
-      <SummaryRow label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
+      <SummaryRow label="Subtotal" value={formatCurrency(subtotal)} />
 
-      {showShipping && (
-        <SummaryRow label="Shipping" value={shippingText} />
-      )}
+      {showShipping && <SummaryRow label="Shipping" value={shippingText} />}
 
-      <SummaryRow label="Tax" value={`$${tax.toFixed(2)}`} />
+      <SummaryRow label="Tax" value={formatCurrency(tax)} />
 
-      <SummaryTotal label="Total" value={`$${total.toFixed(2)}`} />
+      <SummaryTotal label="Total" value={formatCurrency(total)} />
     </View>
   );
 }
