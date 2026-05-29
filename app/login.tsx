@@ -167,14 +167,16 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
   container: { flexGrow: 1, paddingBottom: 0 },
   scroll: { flex: 1 },
-  headerWrap: { height: 220, position: "relative" },
-  headerImage: { width: "100%", height: "145%" },
+  // responsive header: percentage height with a minHeight so small devices still show a good area
+  headerWrap: { height: "45%", minHeight: 90, position: "relative" },
+  // make the header image fill the header container
+  headerImage: { width: "100%", height: "100%" },
   logo: {
     width: "68%",
     height: "60%",
     position: "absolute",
     alignSelf: "center",
-    top: 7,
+    top: -10,
   },
   formWrap: { padding: 20, marginTop: -10, zIndex: 10, elevation: 4 },
   title: {
@@ -183,7 +185,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 22,
     color: "#0a2f4a",
-    marginTop: 30,
+    marginTop: -45,
   },
   fieldLabel: {
     color: "#0a2f4a",

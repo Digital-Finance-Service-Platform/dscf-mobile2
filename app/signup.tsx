@@ -198,15 +198,17 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
-  container: { paddingBottom: 0 },
-  headerWrap: { height: 220, position: "relative" },
-  headerImage: { width: "100%", height: "145%" },
+  container: { flexGrow: 1, paddingBottom: 0 },
+  // make header responsive using percentage height and a minHeight
+  headerWrap: { height: "42%", minHeight: 310, position: "relative" },
+  // image fills the header container
+  headerImage: { width: "100%", height: "100%" },
   logo: {
     width: "70%",
     height: "60%",
     position: "absolute",
     alignSelf: "center",
-    top: 7,
+    top: -15,
   },
   formWrap: { padding: 20, marginTop: -30 },
   title: {
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 10,
     color: "#0a2f4a",
-    marginTop: 30,
+    marginTop: -50,
   },
   fieldLabel: {
     color: "#0a2f4a",

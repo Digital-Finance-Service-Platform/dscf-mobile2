@@ -48,23 +48,26 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
-  top: { height: 320, position: "relative" },
-  bg: { width: "100%", height: "160%" },
+  // use percentage height so the top image scales consistently across devices
+  top: { height: "73%", position: "relative" },
+  bg: { width: "100%", height: "100%" },
   logo: { width: 120, height: 120, position: "absolute", left: 20, top: 36 },
   bottom: { flex: 1, padding: 24, justifyContent: "space-between" },
   title: {
-    fontSize: 38,
-    lineHeight: 38,
+    fontSize: 40,
+    lineHeight: 44,
     color: "#0a2f4a",
-    marginTop: 100,
-    marginLeft: -12,
+    marginTop: "-20%",
+    marginLeft: 0,
+    alignSelf: "flex-start",
   },
   subtitle: {
     color: "#0a2f4a",
     fontWeight: "300",
     fontSize: 17,
-    marginTop: 2,
-    marginLeft: -10,
+    marginTop: 8,
+    marginLeft: 0,
+    alignSelf: "flex-start",
   },
   continue: {
     alignSelf: "flex-end",
