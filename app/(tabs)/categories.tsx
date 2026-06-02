@@ -12,37 +12,37 @@ const CATEGORIES = [
     id: "electronics",
     name: "Electronics",
     count: 124,
-    image: require("@/assets/images/icon.png"),
+    image: require("@/assets/images/logo1.png"),
   },
   {
     id: "apparel",
     name: "Apparel",
     count: 56,
-    image: require("@/assets/images/icon.png"),
+    image: require("@/assets/images/logo1.png"),
   },
   {
     id: "audio",
     name: "Audio",
     count: 38,
-    image: require("@/assets/images/icon.png"),
+    image: require("@/assets/images/logo1.png"),
   },
   {
     id: "industrial",
     name: "Industrial",
     count: 22,
-    image: require("@/assets/images/icon.png"),
+    image: require("@/assets/images/logo1.png"),
   },
   {
     id: "home",
     name: "Home",
     count: 18,
-    image: require("@/assets/images/icon.png"),
+    image: require("@/assets/images/logo1.png"),
   },
   {
     id: "beauty",
     name: "Beauty",
     count: 12,
-    image: require("@/assets/images/icon.png"),
+    image: require("@/assets/images/logo1.png"),
   },
 ];
 
@@ -61,7 +61,8 @@ function CategoryCard({ item, onPress }: any) {
     <ProductCard
       id={item.id}
       title={item.name}
-      price={`${item.count} products`}
+      price={0}
+      priceText={`${item.count} products`}
       image={item.image}
       onPress={() => onPress(item)}
       showAddButton={false}

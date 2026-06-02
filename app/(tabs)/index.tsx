@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import React, { useState, useMemo, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useSdk } from "@/lib/sdk/context";
 import { StyleSheet, View, Pressable, FlatList } from "react-native";
 
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -15,37 +16,12 @@ import { SectionHeader } from "@/components/section-header";
 import { ProductCard } from "@/components/product-card";
 import { useCart } from "@/components/cart-context";
 import { marketGetVisibleListings } from "@/lib/api/clients";
-import { ActivityIndicator } from "react-native";
+import KeGebeyaLoader from "@/components/KeGebeyaLoader";
 import { formatCurrency } from "@/lib/formatters";
 
 const CATEGORIES = ["All", "Electronics", "Industrial", "Apparel"];
 
-const TRENDING = [
-  {
-    id: "1",
-    title: "Aura Smartwatch Pro",
-    category: "Electronics",
-    price: 299.99,
-  },
-  {
-    id: "2",
-    title: "Sonicar Wireless ANC Headphones",
-    category: "Audio",
-    price: 189.5,
-  },
-  {
-    id: "3",
-    title: "Velocity Runners Red Edition",
-    category: "Apparel",
-    price: 120.0,
-  },
-  {
-    id: "4",
-    title: "EchoBuds Pro Wireless",
-    category: "Electronics",
-    price: 89.99,
-  },
-];
+// Removed hardcoded TRENDING fixture — listings are loaded from the API only.
 
 function mapApiListingToCard(listing: any) {
   const product = listing?.product ?? listing?.supplier_product?.product ?? {};
@@ -55,7 +31,7 @@ function mapApiListingToCard(listing: any) {
     null;
   const image = thumbnail
     ? { uri: thumbnail }
-    : require("@/assets/images/icon.png");
+    : require("@/assets/images/logo1.png");
   const title = product?.name ?? listing?.title ?? "Untitled";
   const category = product?.category?.name ?? listing?.category ?? "";
   const price =
@@ -129,7 +105,7 @@ function TopPickCard() {
   );
 }
 
-function TrendingProductCard({ item }: { item: (typeof TRENDING)[0] }) {
+function TrendingProductCard({ item }: { item: any }) {
   const { addItem } = useCart();
 
   const onAdd = () => {
@@ -139,7 +115,7 @@ function TrendingProductCard({ item }: { item: (typeof TRENDING)[0] }) {
       title: item.title,
       price,
       subtitle: item.category,
-      image: item.image || require("@/assets/images/icon.png"),
+      image: item.image || require("@/assets/images/logo1.png"),
     });
   };
 
@@ -158,21 +134,27 @@ function TrendingProductCard({ item }: { item: (typeof TRENDING)[0] }) {
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // safe-read `_t` search param — `useSearchParams` may be unavailable in some expo-router versions
+  let _t: string | undefined = undefined;
+  try {
+    // dynamic require so bundler won't call an undefined hook
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const routerHooks = require("expo-router");
+    if (routerHooks && typeof routerHooks.useSearchParams === "function") {
+      const params = routerHooks.useSearchParams();
+      _t = params?._t;
+    }
+  } catch (e) {
+    _t = undefined;
+  }
+  const { token, refreshKey } = useSdk();
   const [selectedCategory, setSelectedCategory] = useState<string>(
     CATEGORIES[0],
   );
 
-  const [listings, setListings] = useState<any[]>(
-    TRENDING.map((t) => ({
-      id: String(t.id),
-      title: t.title,
-      category: t.category,
-      price: t.price,
-      image: require("@/assets/images/icon.png"),
-      raw: null,
-    })),
-  );
+  const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -182,9 +164,24 @@ export default function HomeScreen() {
         const res = await marketGetVisibleListings();
         const data = Array.isArray(res?.data) ? res.data : res || [];
         const items = data.map(mapApiListingToCard);
-        if (mounted && items.length) setListings(items);
+        if (mounted) {
+          setListings(items);
+          setError(null);
+        }
       } catch (err) {
         console.warn("Failed to load marketplace listings:", err);
+        const msg = String(err ?? "");
+        if (
+          msg.includes("Network request failed") ||
+          msg.toLowerCase().includes("could not reach market server") ||
+          msg.toLowerCase().includes("network")
+        ) {
+          setError(
+            "Network error: could not reach market server at https://uat.api.fcgm.pro.et/marketplace — Network request failed",
+          );
+        } else {
+          setError("Failed to load marketplace listings.");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -192,7 +189,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [_t, token, refreshKey]);
 
   const products = useMemo(() => {
     if (selectedCategory === "All") return listings;
@@ -222,7 +219,15 @@ export default function HomeScreen() {
         />
 
         {loading ? (
-          <ActivityIndicator size="small" style={{ marginTop: 12 }} />
+          <View style={{ marginTop: 12, alignItems: "center" }}>
+            <KeGebeyaLoader />
+          </View>
+        ) : error ? (
+          <View style={{ marginTop: 24, alignItems: "center", paddingHorizontal: 20 }}>
+            <ThemedText type="default" lightColor="#6b6b6b" style={{ textAlign: "center" }}>
+              {error}
+            </ThemedText>
+          </View>
         ) : products.length === 0 ? (
           <View style={{ marginTop: 24, alignItems: "center" }}>
             <ThemedText type="default" lightColor="#6b6b6b">

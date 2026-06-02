@@ -13,15 +13,23 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const apiBase =
+    process.env.EXPO_PUBLIC_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    (Constants.expoConfig?.extra as any)?.apiBaseUrl ??
+    "http://localhost:3000";
+
   const config = {
     authUrl:
       process.env.EXPO_PUBLIC_AUTH_URL ??
+      process.env.NEXT_PUBLIC_AUTH_URL ??
       (Constants.expoConfig?.extra as any)?.authUrl ??
-      "http://localhost:3000",
+      apiBase,
     marketUrl:
       process.env.EXPO_PUBLIC_MARKET_URL ??
+      process.env.NEXT_PUBLIC_MARKET_URL ??
       (Constants.expoConfig?.extra as any)?.marketUrl ??
-      "http://localhost:3000/api/marketplace",
+      `${apiBase.replace(/\/$/, "")}/marketplace`,
   };
   return (
     <ThemeProvider value={DefaultTheme}>

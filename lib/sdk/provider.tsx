@@ -19,6 +19,7 @@ type SdkProviderProps = {
 export function SdkProvider({ children, config }: SdkProviderProps) {
   const [token, setToken] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const refreshToken = useCallback(async () => {
     const storedToken = await getItemAsync("access_token");
@@ -31,6 +32,8 @@ export function SdkProvider({ children, config }: SdkProviderProps) {
 
     // mark that initial token load and client configuration has completed
     setInitialized(true);
+    // bump refresh key so consumers can refetch data even when token didn't change
+    setRefreshKey((k) => k + 1);
   }, [config]);
 
   const logout = useCallback(async () => {
@@ -81,7 +84,9 @@ export function SdkProvider({ children, config }: SdkProviderProps) {
   }, [refreshToken]);
 
   return (
-    <SdkContext.Provider value={{ token, refreshToken, initialized, logout }}>
+    <SdkContext.Provider
+      value={{ token, refreshToken, initialized, logout, refreshKey }}
+    >
       {children}
     </SdkContext.Provider>
   );

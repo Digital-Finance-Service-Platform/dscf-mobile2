@@ -2,17 +2,53 @@ import { getItemAsync, setItemAsync, deleteItemAsync } from "../secureStore";
 import Constants from "expo-constants";
 import axios, { AxiosInstance } from "axios";
 
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  (Constants.expoConfig?.extra as any)?.apiBaseUrl ??
+  "http://localhost:3000";
+
 const AUTH_URL =
   process.env.EXPO_PUBLIC_AUTH_URL ??
+  process.env.NEXT_PUBLIC_AUTH_URL ??
   (Constants.expoConfig?.extra as any)?.authUrl ??
-  "http://localhost:3000";
+  API_BASE;
+
+// Optional explicit auth base (useful when auth lives under a sub-path
+// e.g. https://domain.example/core/auth). If provided, callers should
+// use this as the base and not append an extra `/auth` segment.
+const AUTH_BASE =
+  process.env.EXPO_PUBLIC_AUTH_BASE_URL ??
+  process.env.NEXT_PUBLIC_AUTH_BASE_URL ??
+  (Constants.expoConfig?.extra as any)?.authBaseUrl ??
+  null;
+
+try {
+  console.log("[clients] AUTH_BASE:", AUTH_BASE, "AUTH_URL:", AUTH_URL);
+} catch (e) {}
+
 const MARKET_URL =
   process.env.EXPO_PUBLIC_MARKET_URL ??
+  process.env.NEXT_PUBLIC_MARKET_URL ??
   (Constants.expoConfig?.extra as any)?.marketUrl ??
-  "http://localhost:3000/api/marketplace";
+  `${API_BASE.replace(/\/$/, "")}/marketplace`;
+
+try {
+  console.log("[clients] MARKET_URL:", MARKET_URL);
+} catch (e) {}
 
 export function getAuthUrl() {
-  return AUTH_URL;
+  return AUTH_BASE ?? AUTH_URL;
+}
+
+function authEndpoint(path: string) {
+  const base = AUTH_BASE ?? AUTH_URL;
+  const cleanBase = String(base).replace(/\/$/, "");
+  // If AUTH_BASE is set it is expected to already point to the auth root
+  // (e.g. https://.../core/auth). In that case we join the provided `path`
+  // directly. Otherwise we append `/auth` and then the path.
+  if (AUTH_BASE) return `${cleanBase}${path.startsWith("/") ? path : "/" + path}`;
+  return `${cleanBase}/auth${path.startsWith("/") ? path : "/" + path}`;
 }
 
 export function getMarketUrl() {
@@ -54,7 +90,7 @@ export function setMarketClient(baseURL: string, token?: string) {
 }
 
 export async function authLogin(payload: Record<string, any>): Promise<any> {
-  const url = `${AUTH_URL}/auth/login`;
+  const url = authEndpoint("/login");
   try {
     // Build request body and map legacy keys to what the server expects
     const requestBody: Record<string, any> = {
@@ -109,7 +145,7 @@ export async function authMe(): Promise<any> {
     "Content-Type": "application/json",
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
-  const url = `${AUTH_URL}/auth/me`;
+  const url = authEndpoint("/me");
   try {
     const res = await fetch(url, { method: "GET", headers });
     const json = await res.json().catch(() => ({}));
@@ -173,7 +209,7 @@ export async function authLogout(): Promise<void> {
       "Content-Type": "application/json",
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const url = `${AUTH_URL}/auth/logout`;
+    const url = authEndpoint("/logout");
 
     try {
       try {
@@ -229,7 +265,7 @@ export async function authLogout(): Promise<void> {
 }
 
 export async function authSignup(payload: Record<string, any>): Promise<any> {
-  const url = `${AUTH_URL}/auth/signup`;
+  const url = authEndpoint("/signup");
   try {
     const userSrc = payload.user ?? payload;
     const firstName =
@@ -297,30 +333,22 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
 export async function marketGetVisibleListings(
   /**
    * Fetch visible listings.
-   * Default: public (no bearer token). Pass `true` to use stored bearer token.
+   * Default: public (no bearer token). If a bearer token exists it will be
+   * added automatically by `marketFetch`.
    */
   useAuth: boolean = false,
 ): Promise<any> {
-  if (useAuth) {
-    return marketFetch(`/listings/visible`, { method: "GET" });
-  }
-
-  const url = `${MARKET_URL}/listings/visible`;
   try {
-    const res = await fetch(url, { method: "GET" });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const msg = json?.message || `Request failed (status ${res.status})`;
-      throw new Error(msg);
-    }
-    return json;
+    // Log what we're about to call so runtime logs show the exact URL
+    try {
+      console.log("[clients] marketGetVisibleListings -> MARKET_URL:", MARKET_URL);
+    } catch (e) {}
+    // Delegate to marketFetch which will add Authorization header if a token exists
+    return await marketFetch(`/listings/visible`, { method: "GET" });
   } catch (err: any) {
-    const message = err?.message || String(err);
-    if (message.toLowerCase().includes("network")) {
-      throw new Error(
-        `Network error: could not reach market server at ${MARKET_URL} — ${message}`,
-      );
-    }
+    try {
+      console.warn("[clients] marketGetVisibleListings error:", err?.message ?? err);
+    } catch (e) {}
     throw err;
   }
 }

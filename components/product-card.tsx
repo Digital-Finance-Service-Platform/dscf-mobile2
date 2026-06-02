@@ -13,6 +13,7 @@ interface ProductCardProps {
   title: string;
   category?: string;
   price: string | number;
+  priceText?: string;
   image?: any;
   onPress?: () => void;
   onAddToCart?: () => void;
@@ -25,20 +26,23 @@ export function ProductCard({
   title,
   category,
   price,
+  priceText,
   image,
   onPress,
   onAddToCart,
   showAddButton = true,
   compact = false,
 }: ProductCardProps) {
-  let priceText: string;
-  if (typeof price === "number") {
-    priceText = formatCurrency(price);
+  let displayPrice: string;
+  if (priceText !== undefined) {
+    displayPrice = String(priceText);
+  } else if (typeof price === "number") {
+    displayPrice = formatCurrency(price);
   } else {
     // try to extract numeric value from string and format; otherwise show raw string
     const num = parseFloat(String(price).replace(/[^0-9.-]/g, ""));
-    if (!Number.isNaN(num)) priceText = formatCurrency(num);
-    else priceText = String(price);
+    if (!Number.isNaN(num)) displayPrice = formatCurrency(num);
+    else displayPrice = String(price);
   }
 
   return (
@@ -77,7 +81,7 @@ export function ProductCard({
           lightColor="#8a1d1d"
           style={[styles.productPrice, compact && styles.compactPrice]}
         >
-          {priceText}
+          {displayPrice}
         </ThemedText>
 
         {showAddButton && onAddToCart && (
@@ -109,11 +113,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+    justifyContent: "space-between",
+    minHeight: 200,
   },
   compactCard: {
     width: CARD_WIDTH * 0.8,
     padding: 8,
     marginBottom: 8,
+    minHeight: 170,
   },
   productThumbWrap: {
     backgroundColor: "#f6f6f6",

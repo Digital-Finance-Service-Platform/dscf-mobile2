@@ -84,7 +84,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 function AppHeader() {
   const segments = useSegments();
   const { count } = useCart();
-  const { token, logout } = useSdk();
+  const { token, logout, refreshToken } = useSdk();
   const router = useRouter();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -116,8 +116,37 @@ function AppHeader() {
 
       <View style={layoutStyles.rightIcons}>
         <TouchableOpacity
-          accessibilityLabel="Open cart"
+          accessibilityLabel="Refresh"
           style={layoutStyles.headerIconWrap}
+          onPress={async () => {
+            try {
+              console.log("AppHeader: Refresh pressed");
+            } catch (e) {}
+            try {
+              await refreshToken();
+            } catch (e) {
+              try {
+                console.log("AppHeader: refreshToken failed", e);
+              } catch (e) {}
+            }
+            try {
+              const currentPath =
+                segments && segments.length ? "/" + segments.join("/") : "/";
+              // append timestamp to force navigation/rerender
+              router.replace(`${currentPath}?_t=${Date.now()}`);
+            } catch (e) {
+              try {
+                console.log("AppHeader: router replace failed", e);
+              } catch (e) {}
+            }
+          }}
+        >
+          <MaterialIcons name="refresh" size={24} color={iconColor} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityLabel="Open cart"
+          style={[layoutStyles.headerIconWrap, { marginLeft: -6 }]}
         >
           <IconSymbol name="cart" size={28} color={iconColor} />
           {count > 0 && (

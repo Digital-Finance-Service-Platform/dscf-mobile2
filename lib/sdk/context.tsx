@@ -6,6 +6,8 @@ type SdkContextType = {
   logout: () => Promise<void>;
   // indicates initial token load from secure storage has completed
   initialized: boolean;
+  // increments each time clients are (re)configured
+  refreshKey: number;
 };
 
 export const SdkContext = createContext<SdkContextType>({
@@ -13,6 +15,7 @@ export const SdkContext = createContext<SdkContextType>({
   refreshToken: async () => {},
   logout: async () => {},
   initialized: false,
+  refreshKey: 0,
 });
 
 export const useSdk = () => useContext(SdkContext);
