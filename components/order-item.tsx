@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, View, Image as RNImage } from "react-native";
 import { ThemedText } from "@/components/themed-text";
+import { formatCurrency } from "@/lib/formatters";
 
 interface OrderItemProps {
   id: string;
@@ -34,7 +35,7 @@ export function OrderItem({
         )}
       </View>
       <ThemedText type="defaultSemiBold" lightColor="#8a1d1d">
-        ${(price * quantity).toFixed(2)}
+        {formatCurrency(price * quantity)}
       </ThemedText>
     </View>
   );

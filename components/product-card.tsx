@@ -3,6 +3,7 @@ import { StyleSheet, View, TouchableOpacity, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ThemedText } from "@/components/themed-text";
+import { formatCurrency } from "@/lib/formatters";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 48) / 2;
@@ -12,6 +13,7 @@ interface ProductCardProps {
   title: string;
   category?: string;
   price: string | number;
+  priceText?: string;
   image?: any;
   onPress?: () => void;
   onAddToCart?: () => void;
@@ -24,13 +26,24 @@ export function ProductCard({
   title,
   category,
   price,
+  priceText,
   image,
   onPress,
   onAddToCart,
   showAddButton = true,
   compact = false,
 }: ProductCardProps) {
-  const priceText = typeof price === "number" ? `$${price.toFixed(2)}` : price;
+  let displayPrice: string;
+  if (priceText !== undefined) {
+    displayPrice = String(priceText);
+  } else if (typeof price === "number") {
+    displayPrice = formatCurrency(price);
+  } else {
+    // try to extract numeric value from string and format; otherwise show raw string
+    const num = parseFloat(String(price).replace(/[^0-9.-]/g, ""));
+    if (!Number.isNaN(num)) displayPrice = formatCurrency(num);
+    else displayPrice = String(price);
+  }
 
   return (
     <TouchableOpacity
@@ -46,7 +59,10 @@ export function ProductCard({
       </View>
 
       {category && (
-        <ThemedText type="default" style={[styles.categoryText, compact && styles.compactCategory]}>
+        <ThemedText
+          type="default"
+          style={[styles.categoryText, compact && styles.compactCategory]}
+        >
           {category.toUpperCase()}
         </ThemedText>
       )}
@@ -65,7 +81,7 @@ export function ProductCard({
           lightColor="#8a1d1d"
           style={[styles.productPrice, compact && styles.compactPrice]}
         >
-          {priceText}
+          {displayPrice}
         </ThemedText>
 
         {showAddButton && onAddToCart && (
@@ -74,7 +90,11 @@ export function ProductCard({
             onPress={onAddToCart}
             accessibilityLabel="Add to cart"
           >
-            <MaterialIcons name="add" size={compact ? 16 : 18} color="#6b6b6b" />
+            <MaterialIcons
+              name="add"
+              size={compact ? 16 : 18}
+              color="#6b6b6b"
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -93,11 +113,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+    justifyContent: "space-between",
+    minHeight: 200,
   },
   compactCard: {
     width: CARD_WIDTH * 0.8,
     padding: 8,
     marginBottom: 8,
+    minHeight: 170,
   },
   productThumbWrap: {
     backgroundColor: "#f6f6f6",

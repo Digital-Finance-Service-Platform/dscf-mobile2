@@ -1,7 +1,13 @@
 import React from "react";
-import { StyleSheet, View, TouchableOpacity, Image as RNImage } from "react-native";
+import {
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  Image as RNImage,
+} from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ThemedText } from "@/components/themed-text";
+import { formatCurrency } from "@/lib/formatters";
 import { QuantityControls } from "./quantity-controls";
 
 interface CartItemProps {
@@ -40,9 +46,7 @@ export function CartItem({
         <ThemedText type="subtitle" style={{ fontSize: 16 }}>
           {title}
         </ThemedText>
-        {subtitle && (
-          <ThemedText type="default2">{subtitle}</ThemedText>
-        )}
+        {subtitle && <ThemedText type="default2">{subtitle}</ThemedText>}
 
         <View style={styles.itemFooter}>
           {showQuantityControls && (
@@ -59,7 +63,7 @@ export function CartItem({
               lightColor="#8a1d1d"
               style={styles.priceText}
             >
-              ${(price * quantity).toFixed(2)}
+              {formatCurrency(price * quantity)}
             </ThemedText>
           </View>
         </View>
@@ -71,11 +75,7 @@ export function CartItem({
           onPress={() => onRemove(id)}
           accessibilityLabel="Remove item"
         >
-          <MaterialIcons
-            name="delete-outline"
-            size={16}
-            color="#5A413D"
-          />
+          <MaterialIcons name="delete-outline" size={16} color="#5A413D" />
         </TouchableOpacity>
       )}
     </View>

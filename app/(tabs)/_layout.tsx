@@ -1,5 +1,5 @@
-import { Tabs, useSegments } from "expo-router";
-import React, { useEffect } from "react";
+import { Tabs, useSegments, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import { Image } from "expo-image";
 
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCart } from "@/components/cart-context";
+import { useSdk } from "@/lib/sdk/context";
+import LogoutConfirmModal from "@/components/ui/logout-confirm-modal";
+import MenuModal from "@/components/ui/menu-modal";
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   return (
@@ -45,15 +48,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               style={styles.tabItem}
             >
               {isFocused ? (
-                /* Active state with 90-degree horizontally split mask background */
                 <View style={styles.activeTabWrapper}>
                   <View style={styles.cutoutRing}>
-                    {/* Top half: White */}
                     <View style={styles.topHalfMask} />
-                    {/* Bottom half: Gray */}
                     <View style={styles.bottomHalfMask} />
 
-                    {/* Centered Floating Active Circle */}
                     <View style={styles.activeCircle}>
                       <MaterialIcons
                         name={iconName}
@@ -67,7 +66,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                   </Text>
                 </View>
               ) : (
-                /* Inactive state */
                 <View style={styles.inactiveTabWrapper}>
                   <MaterialIcons name={iconName} size={24} color="#a89c95" />
                   <Text style={[styles.label, styles.inactiveLabel]}>
@@ -86,6 +84,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 function AppHeader() {
   const segments = useSegments();
   const { count } = useCart();
+  const { token, logout, refreshToken } = useSdk();
+  const router = useRouter();
+
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showMenuModal, setShowMenuModal] = useState(false);
 
   // hide the global app header on checkout screens
   const hideOn = ["checkout"];
@@ -101,6 +104,7 @@ function AppHeader() {
       <TouchableOpacity
         accessibilityLabel="Open menu"
         style={layoutStyles.headerIconWrap}
+        onPress={() => setShowMenuModal(true)}
       >
         <IconSymbol name="line.horizontal.3" size={28} color={iconColor} />
       </TouchableOpacity>
@@ -110,17 +114,141 @@ function AppHeader() {
         style={layoutStyles.headerIconSmall}
       />
 
-      <TouchableOpacity
-        accessibilityLabel="Open cart"
-        style={layoutStyles.headerIconWrap}
-      >
-        <IconSymbol name="cart" size={28} color={iconColor} />
-        {count > 0 && (
-          <View style={layoutStyles.badge}>
-            <Text style={layoutStyles.badgeText}>{count}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+      <View style={layoutStyles.rightIcons}>
+        <TouchableOpacity
+          accessibilityLabel="Refresh"
+          style={layoutStyles.headerIconWrap}
+          onPress={async () => {
+            try {
+              console.log("AppHeader: Refresh pressed");
+            } catch (e) {}
+            try {
+              await refreshToken();
+            } catch (e) {
+              try {
+                console.log("AppHeader: refreshToken failed", e);
+              } catch (e) {}
+            }
+            try {
+              const currentPath =
+                segments && segments.length ? "/" + segments.join("/") : "/";
+              // append timestamp to force navigation/rerender
+              router.replace(`${currentPath}?_t=${Date.now()}`);
+            } catch (e) {
+              try {
+                console.log("AppHeader: router replace failed", e);
+              } catch (e) {}
+            }
+          }}
+        >
+          <MaterialIcons name="refresh" size={24} color={iconColor} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityLabel="Open cart"
+          style={[layoutStyles.headerIconWrap, { marginLeft: -6 }]}
+        >
+          <IconSymbol name="cart" size={28} color={iconColor} />
+          {count > 0 && (
+            <View style={layoutStyles.badge}>
+              <Text style={layoutStyles.badgeText}>{count}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <LogoutConfirmModal
+          visible={showLogoutModal}
+          onCancel={() => setShowLogoutModal(false)}
+          onConfirm={async () => {
+            // debug: confirm handler invoked
+            try {
+              console.log("AppHeader: Logout confirmed - starting logout");
+            } catch (e) {}
+            setShowLogoutModal(false);
+            try {
+              await logout();
+              try {
+                console.log("AppHeader: logout() completed");
+              } catch (e) {}
+            } catch (e) {
+              // ignore
+              try {
+                console.log("AppHeader: logout() threw", e);
+              } catch (e) {}
+            }
+            try {
+              router.replace("/welcome");
+              try {
+                console.log("AppHeader: navigated to /welcome");
+              } catch (e) {}
+            } catch (e) {
+              // ignore
+              try {
+                console.log("AppHeader: router.replace failed", e);
+              } catch (e) {}
+            }
+          }}
+        />
+
+        <MenuModal
+          visible={showMenuModal}
+          onClose={() => setShowMenuModal(false)}
+          items={[
+            {
+              label: "My Profile",
+              icon: "person",
+              onPress: () => {
+                setShowMenuModal(false);
+                router.push("/profile");
+              },
+            },
+            {
+              label: "Favorites",
+              icon: "favorite",
+              onPress: () => {
+                setShowMenuModal(false);
+                router.push("/favorites");
+              },
+            },
+            {
+              label: "Contact Us",
+              icon: "phone",
+              onPress: () => {
+                setShowMenuModal(false);
+                router.push("/contact");
+              },
+            },
+            {
+              label: "Chatbot",
+              icon: "chat",
+              onPress: () => {
+                setShowMenuModal(false);
+                router.push("/chatbot");
+              },
+            },
+            {
+              label: "Settings",
+              icon: "settings",
+              onPress: () => {
+                setShowMenuModal(false);
+                router.push("/settings");
+              },
+            },
+            {
+              label: "Log out",
+              icon: "logout",
+              onPress: () => {
+                // debug: trace menu logout press
+                try {
+                  console.log("AppHeader: Menu 'Log out' pressed");
+                } catch (e) {}
+                setShowMenuModal(false);
+                setShowLogoutModal(true);
+              },
+            },
+          ]}
+        />
+      </View>
     </View>
   );
 }
@@ -190,7 +318,7 @@ export default function TabLayout() {
           />
         </Tabs>
       </View>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
     </>
   );
 }
@@ -314,7 +442,7 @@ const layoutStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerIconSmall: { width: "45%", height: "70%",  },
+  headerIconSmall: { width: "45%", height: "70%" },
   badge: {
     position: "absolute",
     top: -6,
@@ -330,4 +458,8 @@ const layoutStyles = StyleSheet.create({
     borderColor: "#fff",
   },
   badgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  rightIcons: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
 });

@@ -2,6 +2,9 @@ import "react-native-reanimated";
 import React from "react";
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { CartProvider } from "@/components/cart-context";
+import SdkProvider from "@/lib/sdk/provider";
+import { useSdk } from "@/lib/sdk/context";
+import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
@@ -10,14 +13,53 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const apiBase =
+    process.env.EXPO_PUBLIC_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    (Constants.expoConfig?.extra as any)?.apiBaseUrl ??
+    "http://localhost:3000";
+
+  const config = {
+    authUrl:
+      process.env.EXPO_PUBLIC_AUTH_URL ??
+      process.env.NEXT_PUBLIC_AUTH_URL ??
+      (Constants.expoConfig?.extra as any)?.authUrl ??
+      apiBase,
+    marketUrl:
+      process.env.EXPO_PUBLIC_MARKET_URL ??
+      process.env.NEXT_PUBLIC_MARKET_URL ??
+      (Constants.expoConfig?.extra as any)?.marketUrl ??
+      `${apiBase.replace(/\/$/, "")}/marketplace`,
+  };
   return (
     <ThemeProvider value={DefaultTheme}>
-      <CartProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-        <StatusBar style="light" />
-      </CartProvider>
+      <SdkProvider config={config}>
+        <CartProvider>
+          {/* Render welcome/login or main tabs after SDK initialization */}
+          <AuthStack />
+          <StatusBar style="light" backgroundColor="#000000" />
+        </CartProvider>
+      </SdkProvider>
     </ThemeProvider>
+  );
+}
+
+function AuthStack() {
+  const { token, initialized } = useSdk();
+
+  // Wait for token load from secure storage
+  if (!initialized) return null;
+  const initialRoute = token ? "(tabs)" : "welcome";
+
+  return (
+    <Stack
+      screenOptions={{ headerShown: false }}
+      initialRouteName={initialRoute}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="signup" options={{ headerShown: false }} />
+    </Stack>
   );
 }

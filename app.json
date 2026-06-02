@@ -4,7 +4,7 @@
     "slug": "dscf-mobile2",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/welcome.png",
     "scheme": "dscfmobile2",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "foregroundImage": "./assets/images/welcome.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -30,12 +30,20 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "splash": {
+      "image": "./assets/images/welcome.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF9F8",
+      "dark": {
+        "backgroundColor": "#FAF9F8"
+      }
+    },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/welcome.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#FAF9F8",
@@ -43,7 +51,8 @@
             "backgroundColor": "#FAF9F8"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
