@@ -52,6 +52,13 @@
           }
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow KeGebeya to access your location while you use the app.",
+          "locationAlwaysAndWhenInUsePermission": "Allow KeGebeya to access your location to set dropoff points."
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {

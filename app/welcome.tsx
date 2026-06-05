@@ -1,9 +1,9 @@
-import React from "react";
-import { StyleSheet, View, SafeAreaView, Text, Pressable } from "react-native";
-import { Image } from "expo-image";
 import { ThemedText } from "@/components/themed-text";
-import { useRouter } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -29,7 +29,7 @@ export default function WelcomeScreen() {
 
         <Pressable
           style={styles.continue}
-          onPress={() => router.push("/login")}
+          onPress={() => router.push("/onboarding/role")}
         >
           <ThemedText type="defaultSemiBold" style={styles.continueText}>
             Continue
