@@ -10,6 +10,12 @@ module.exports = {
   ...appJson,
   expo: {
     ...appJson.expo,
+    updates: {
+      enabled: true,
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 30000,
+      url: "https://updates.expo.dev/d7cf26a5-2d78-4e01-a049-f7366c510ab2",
+    },
     android: {
       ...appJson.expo?.android,
       config: {
@@ -26,6 +32,9 @@ module.exports = {
     },
     extra: {
       ...(appJson.expo?.extra || {}),
+      eas: {
+        projectId: "d7cf26a5-2d78-4e01-a049-f7366c510ab2",
+      },
       faydaUrl:
         process.env.EXPO_PUBLIC_FAYDA_URL ?? appJson.expo?.extra?.faydaUrl,
       authUrl:

@@ -3,9 +3,11 @@ import { useSdk } from "@/lib/sdk/context";
 import SdkProvider from "@/lib/sdk/provider";
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useEffect } from "react";
+import { Alert } from "react-native";
 import "react-native-reanimated";
 
 export const unstable_settings = {
@@ -31,6 +33,44 @@ export default function RootLayout() {
       (Constants.expoConfig?.extra as any)?.marketUrl ??
       `${apiBase.replace(/\/$/, "")}/marketplace`,
   };
+
+  // Check for updates on app launch
+  useEffect(() => {
+    checkForUpdates();
+  }, []);
+
+  const checkForUpdates = async () => {
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        Alert.alert(
+          "Update Available",
+          "A new version of the app is available. Would you like to update now?",
+          [
+            {
+              text: "Later",
+              onPress: () => {},
+              style: "cancel",
+            },
+            {
+              text: "Update",
+              onPress: async () => {
+                try {
+                  await Updates.fetchUpdateAsync();
+                  await Updates.reloadAsync();
+                } catch (error) {
+                  Alert.alert("Error", "Failed to install update");
+                }
+              },
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.log("Error checking for updates:", error);
+    }
+  };
+
   return (
     <ThemeProvider value={DefaultTheme}>
       <SdkProvider config={config}>
