@@ -17,12 +17,5 @@
   },
   "submit": {
     "production": {}
-  },
-  "updates": {
-    "enabled": true,
-    "codeSigningCertificate": "./certs/code-signing-cert.pem",
-    "codeSigningMetadata": "./certs/code-signing-metadata.json",
-    "channel": "production",
-    "distribution": "generic"
   }
 }

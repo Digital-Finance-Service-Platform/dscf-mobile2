@@ -11,7 +11,7 @@ module.exports = {
   expo: {
     ...appJson.expo,
     updates: {
-      enabled: true,
+      enabled: false,
       checkAutomatically: "ON_LOAD",
       fallbackToCacheTimeout: 30000,
       url: "https://updates.expo.dev/d7cf26a5-2d78-4e01-a049-f7366c510ab2",

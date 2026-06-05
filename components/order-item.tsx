@@ -1,7 +1,7 @@
-import React from "react";
-import { StyleSheet, View, Image as RNImage } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { formatCurrency } from "@/lib/formatters";
+import React from "react";
+import { Image as RNImage, StyleSheet, View } from "react-native";
 
 interface OrderItemProps {
   id: string;
@@ -23,7 +23,7 @@ export function OrderItem({
   return (
     <View style={styles.itemRow}>
       <RNImage
-        source={image ?? require("@/assets/images/icon.png")}
+        source={image ?? require("@/assets/images/logo1.png")}
         style={styles.thumb}
       />
       <View style={{ marginLeft: 12, flex: 1 }}>
