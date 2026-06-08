@@ -5,9 +5,7 @@ import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import * as Updates from "expo-updates";
-import React, { useEffect } from "react";
-import { Alert } from "react-native";
+import React from "react";
 import "react-native-reanimated";
 
 export const unstable_settings = {
@@ -32,43 +30,6 @@ export default function RootLayout() {
       process.env.NEXT_PUBLIC_MARKET_URL ??
       (Constants.expoConfig?.extra as any)?.marketUrl ??
       `${apiBase.replace(/\/$/, "")}/marketplace`,
-  };
-
-  // Check for updates on app launch
-  useEffect(() => {
-    checkForUpdates();
-  }, []);
-
-  const checkForUpdates = async () => {
-    try {
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        Alert.alert(
-          "Update Available",
-          "A new version of the app is available. Would you like to update now?",
-          [
-            {
-              text: "Later",
-              onPress: () => {},
-              style: "cancel",
-            },
-            {
-              text: "Update",
-              onPress: async () => {
-                try {
-                  await Updates.fetchUpdateAsync();
-                  await Updates.reloadAsync();
-                } catch (error) {
-                  Alert.alert("Error", "Failed to install update");
-                }
-              },
-            },
-          ]
-        );
-      }
-    } catch (error) {
-      console.log("Error checking for updates:", error);
-    }
   };
 
   return (

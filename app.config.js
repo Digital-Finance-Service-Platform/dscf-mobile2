@@ -10,6 +10,9 @@ module.exports = {
   ...appJson,
   expo: {
     ...appJson.expo,
+    updates: {
+      url: "https://u.expo.dev/d7cf26a5-2d78-4e01-a049-f7366c510ab2"
+    },
     android: {
       ...appJson.expo?.android,
       config: {

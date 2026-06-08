@@ -37,6 +37,9 @@
         "backgroundColor": "#FAF9F8"
       }
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "expo-router",
       [
@@ -58,7 +61,8 @@
           "locationAlwaysAndWhenInUsePermission": "Allow KeGebeya to access your location to set dropoff points."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true,

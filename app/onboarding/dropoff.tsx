@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import MapView, { Marker, type MapPressEvent } from "react-native-maps";
+import MapView, { Marker, UrlTile, type MapPressEvent } from "react-native-maps";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
@@ -145,7 +145,13 @@ export default function OnboardingDropoffScreen() {
             initialRegion={DEFAULT_REGION}
             onPress={handleMapPress}
             showsUserLocation={hasLocationPermission}
+            mapType="none"
           >
+            <UrlTile
+              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
             {pin ? (
               <Marker coordinate={pin} />
             ) : (
