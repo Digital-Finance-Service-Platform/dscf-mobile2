@@ -1,12 +1,13 @@
-import React, { type ReactNode } from "react";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
+import React, { type ReactNode } from "react";
 import {
   StyleSheet,
-  View,
   TouchableOpacity,
+  View,
   type ViewStyle,
 } from "react-native";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -33,11 +34,13 @@ export function PageShell({
   style,
 }: PageShellProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const showHeader = showBackButton || title || subtitle || rightNode;
 
   return (
-    <ThemedView style={[styles.container, style]}>
+    <>
+      <ThemedView style={[styles.container, style]}>
       {showHeader ? (
         <View
           style={[styles.headerRow, compactHeader && styles.headerRowCompact]}
@@ -102,8 +105,12 @@ export function PageShell({
 
       {children}
 
-      {footer ? <View style={styles.footer}>{footer}</View> : null}
+      {footer ? <View style={[styles.footer, { paddingBottom: insets.bottom }]}>{footer}</View> : null}
     </ThemedView>
+    
+    {/* Black safe area for phone navigation bar */}
+    <View style={[styles.bottomSafeArea, { height: insets.bottom }]} />
+    </>
   );
 }
 
@@ -150,4 +157,11 @@ const styles = StyleSheet.create({
   },
   subtitle: { marginTop: 4, textAlign: "left" },
   footer: { marginTop: "auto" },
+  bottomSafeArea: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#000000",
+  },
 });

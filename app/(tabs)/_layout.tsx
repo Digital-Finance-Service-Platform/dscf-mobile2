@@ -4,11 +4,11 @@ import { Tabs, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { useCart } from "@/components/cart-context";
@@ -16,10 +16,13 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import LogoutConfirmModal from "@/components/ui/logout-confirm-modal";
 import MenuModal from "@/components/ui/menu-modal";
 import { useSdk } from "@/lib/sdk/context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.tabBarContainer}>
+    <View style={[styles.tabBarContainer, { paddingBottom: insets.bottom }]}>
       <View style={styles.tabBarBackground}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
@@ -133,7 +136,7 @@ function AppHeader() {
               const currentPath =
                 segments && segments.length ? "/" + segments.join("/") : "/";
               // append timestamp to force navigation/rerender
-              router.replace(`${currentPath}?_t=${Date.now()}`);
+              router.replace(`${currentPath}?_t=${Date.now()}` as any);
             } catch (e) {
               try {
                 console.log("AppHeader: router replace failed", e);
@@ -199,7 +202,7 @@ function AppHeader() {
               icon: "person",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/profile");
+                router.push("/profile" as any);
               },
             },
             {
@@ -207,7 +210,7 @@ function AppHeader() {
               icon: "favorite",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/favorites");
+                router.push("/favorites" as any);
               },
             },
             {
@@ -215,7 +218,7 @@ function AppHeader() {
               icon: "phone",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/contact");
+                router.push("/contact" as any);
               },
             },
             {
@@ -223,7 +226,7 @@ function AppHeader() {
               icon: "chat",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/chatbot");
+                router.push("/chatbot" as any);
               },
             },
             {
@@ -231,7 +234,7 @@ function AppHeader() {
               icon: "settings",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/settings");
+                router.push("/settings" as any);
               },
             },
             {
@@ -329,7 +332,9 @@ const styles = StyleSheet.create({
     left: 2,
     right: 2,
     bottom: 0,
-    backgroundColor: "transparent",
+    backgroundColor: "#000000",
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
   },
   tabBarBackground: {
     flexDirection: "row",
