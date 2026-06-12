@@ -2,12 +2,36 @@ const dotenv = require("dotenv");
 dotenv.config();
 const appJson = require("./app.json");
 
+const googleMapsApiKey =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ??
+  appJson.expo?.android?.config?.googleMaps?.apiKey;
+
 module.exports = {
   ...appJson,
   expo: {
     ...appJson.expo,
+    updates: {
+      url: "https://u.expo.dev/d7cf26a5-2d78-4e01-a049-f7366c510ab2"
+    },
+    android: {
+      ...appJson.expo?.android,
+      config: {
+        ...(appJson.expo?.android?.config || {}),
+        ...(googleMapsApiKey
+          ? {
+              googleMaps: {
+                ...(appJson.expo?.android?.config?.googleMaps || {}),
+                apiKey: googleMapsApiKey,
+              },
+            }
+          : {}),
+      },
+    },
     extra: {
       ...(appJson.expo?.extra || {}),
+      eas: {
+        projectId: "d7cf26a5-2d78-4e01-a049-f7366c510ab2",
+      },
       faydaUrl:
         process.env.EXPO_PUBLIC_FAYDA_URL ?? appJson.expo?.extra?.faydaUrl,
       authUrl:

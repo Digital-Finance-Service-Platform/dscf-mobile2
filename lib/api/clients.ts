@@ -1,6 +1,6 @@
-import { getItemAsync, setItemAsync, deleteItemAsync } from "../secureStore";
-import Constants from "expo-constants";
 import axios, { AxiosInstance } from "axios";
+import Constants from "expo-constants";
+import { deleteItemAsync, getItemAsync, setItemAsync } from "../secureStore";
 
 const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
@@ -112,8 +112,12 @@ export async function authLogin(payload: Record<string, any>): Promise<any> {
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const msg =
-        json?.message || json?.error || `Login failed (status ${res.status})`;
+      // Extract user-friendly message from backend response
+      const msg = 
+        json?.message || 
+        json?.error || 
+        (json?.errors && typeof json.errors === 'string' ? json.errors : null) ||
+        `Login failed (status ${res.status})`;
       throw new Error(msg);
     }
     const accessToken =

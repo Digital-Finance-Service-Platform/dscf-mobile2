@@ -1,21 +1,21 @@
-import { Tabs, useSegments, useRouter } from "expo-router";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Image } from "expo-image";
+import { Tabs, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Platform,
-  TouchableOpacity,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { StatusBar } from "expo-status-bar";
-import { Image } from "expo-image";
 
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useCart } from "@/components/cart-context";
-import { useSdk } from "@/lib/sdk/context";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import LogoutConfirmModal from "@/components/ui/logout-confirm-modal";
 import MenuModal from "@/components/ui/menu-modal";
+import { useSdk } from "@/lib/sdk/context";
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   return (

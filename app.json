@@ -14,9 +14,8 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/welcome.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "navigationBar": {
         "backgroundColor": "#FAF9F8",
@@ -38,6 +37,9 @@
         "backgroundColor": "#FAF9F8"
       }
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
       "expo-router",
       [
@@ -52,7 +54,15 @@
           }
         }
       ],
-      "expo-secure-store"
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow KeGebeya to access your location while you use the app.",
+          "locationAlwaysAndWhenInUsePermission": "Allow KeGebeya to access your location to set dropoff points."
+        }
+      ],
+      "expo-secure-store",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true,

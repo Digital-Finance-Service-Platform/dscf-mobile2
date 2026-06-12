@@ -1,12 +1,12 @@
-import "react-native-reanimated";
-import React from "react";
-import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { CartProvider } from "@/components/cart-context";
-import SdkProvider from "@/lib/sdk/provider";
 import { useSdk } from "@/lib/sdk/context";
+import SdkProvider from "@/lib/sdk/provider";
+import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import React from "react";
+import "react-native-reanimated";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -31,6 +31,7 @@ export default function RootLayout() {
       (Constants.expoConfig?.extra as any)?.marketUrl ??
       `${apiBase.replace(/\/$/, "")}/marketplace`,
   };
+
   return (
     <ThemeProvider value={DefaultTheme}>
       <SdkProvider config={config}>
@@ -60,6 +61,16 @@ function AuthStack() {
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/role" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/agent" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="onboarding/retailor"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="onboarding/dropoff"
+        options={{ headerShown: false }}
+      />
     </Stack>
   );
 }

@@ -1,9 +1,9 @@
-import React from "react";
-import { StyleSheet, View, TouchableOpacity, Dimensions } from "react-native";
-import { Image } from "expo-image";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ThemedText } from "@/components/themed-text";
 import { formatCurrency } from "@/lib/formatters";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Image } from "expo-image";
+import React from "react";
+import { Dimensions, StyleSheet, TouchableOpacity, View } from "react-native";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 48) / 2;
@@ -53,7 +53,7 @@ export function ProductCard({
     >
       <View style={[styles.productThumbWrap, compact && styles.compactThumb]}>
         <Image
-          source={image || require("@/assets/images/icon.png")}
+          source={image || require("@/assets/images/favicon.png")}
           style={[styles.productThumb, compact && styles.compactImage]}
         />
       </View>

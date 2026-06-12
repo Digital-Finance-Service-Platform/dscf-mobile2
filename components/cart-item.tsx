@@ -1,13 +1,13 @@
-import React from "react";
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Image as RNImage,
-} from "react-native";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ThemedText } from "@/components/themed-text";
 import { formatCurrency } from "@/lib/formatters";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import React from "react";
+import {
+  Image as RNImage,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { QuantityControls } from "./quantity-controls";
 
 interface CartItemProps {
@@ -38,7 +38,7 @@ export function CartItem({
   return (
     <View style={styles.itemCard}>
       <RNImage
-        source={image ?? require("@/assets/images/icon.png")}
+        source={image ?? require("@/assets/images/logo1.png")}
         style={styles.thumb}
       />
 
