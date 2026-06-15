@@ -2,28 +2,43 @@ import { ThemedText } from "@/components/themed-text";
 import { authSignup } from "@/lib/api/clients";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from "react-native";
 
 export default function SignupScreen() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const params = useLocalSearchParams();
+  
+  // Extract role and collected data from params
+  const role = Array.isArray(params.role) ? params.role[0] : params.role;
+  const password = Array.isArray(params.password) ? params.password[0] : params.password;
+  const confirmPassword = Array.isArray(params.confirmPassword) ? params.confirmPassword[0] : params.confirmPassword;
+  
+  // Pre-fill from onboarding flow if available
+  const initialPhone = Array.isArray(params.phone) ? params.phone[0] : params.phone;
+  const initialName = 
+    (Array.isArray(params.fullName) ? params.fullName[0] : params.fullName) ||
+    (Array.isArray(params.storeName) ? params.storeName[0] : params.storeName) ||
+    (Array.isArray(params.businessName) ? params.businessName[0] : params.businessName) ||
+    "";
+
+  const [name, setName] = useState(initialName || "");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [phone, setPhone] = useState(initialPhone || "");
+  const [pass, setPass] = useState(password || "");
+  const [confirm, setConfirm] = useState(confirmPassword || "");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -31,11 +46,11 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     setError(null);
-    if (!name.trim() || !email.trim() || !password) {
+    if (!name.trim() || !email.trim() || !pass) {
       setError("Please complete all fields");
       return;
     }
-    if (password !== confirm) {
+    if (pass !== confirm) {
       setError("Passwords do not match");
       return;
     }
@@ -50,8 +65,8 @@ export default function SignupScreen() {
         user: {
           email: email.trim().toLowerCase(),
           phone: phone.trim() || undefined,
-          password,
-          password_confirmation: confirm || password,
+          password: pass,
+          password_confirmation: confirm || pass,
           user_profile_attributes: {
             first_name: firstName,
             last_name: lastName,
@@ -59,7 +74,25 @@ export default function SignupScreen() {
         },
       });
 
-      router.replace("/login");
+      // Role-specific post-signup navigation
+      if (role === "retailer") {
+        // Retailers can login immediately
+        router.replace("/login");
+      } else if (role === "supplier" || role === "agent") {
+        // Suppliers and agents need approval
+        router.replace({
+          pathname: "/onboarding/pending-approval" as any,
+          params: { 
+            role, 
+            status: "pending",
+            // Mock: in real implementation, agentId would come from backend
+            agentId: role === "agent" ? "AGT-" + Math.random().toString(36).substring(2, 11).toUpperCase() : undefined,
+          },
+        });
+      } else {
+        // Default to login
+        router.replace("/login");
+      }
     } catch (e) {
       const msg = (e as any)?.message ?? "Sign up failed";
       setError(msg);
@@ -141,8 +174,8 @@ export default function SignupScreen() {
             <MaterialIcons name="lock-outline" size={18} color="#0a2f4a" />
             <TextInput
               style={styles.inputText}
-              value={password}
-              onChangeText={setPassword}
+              value={pass}
+              onChangeText={setPass}
               secureTextEntry={!showPassword}
               placeholder="enter your password"
               placeholderTextColor="#9a9a9a"
