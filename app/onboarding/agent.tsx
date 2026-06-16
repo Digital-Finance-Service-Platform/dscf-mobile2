@@ -2,15 +2,25 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
+import { faydaVerify } from "@/lib/api/clients";
+
+type FaydaData = {
+  verified: boolean;
+  full_name: string;
+  gender: string;
+  date_of_birth: string;
+  fayda_number: string;
+};
 
 export default function OnboardingAgentScreen() {
   const router = useRouter();
@@ -20,6 +30,10 @@ export default function OnboardingAgentScreen() {
   const [gender, setGender] = useState<"male" | "female" | "">("");
   const [nationalId, setNationalId] = useState("");
   const [serviceArea, setServiceArea] = useState("");
+  const [faydaNumber, setFaydaNumber] = useState("");
+  const [faydaData, setFaydaData] = useState<FaydaData | null>(null);
+  const [faydaLoading, setFaydaLoading] = useState(false);
+  const [faydaError, setFaydaError] = useState<string | null>(null);
 
   const missingRequired = useMemo(() => {
     return (
@@ -31,6 +45,31 @@ export default function OnboardingAgentScreen() {
     );
   }, [fullName, phone, gender, nationalId, serviceArea]);
 
+  const handleVerifyFayda = async () => {
+    if (!faydaNumber.trim() || faydaNumber.length !== 12) {
+      setFaydaError("FAYDA number must be 12 digits");
+      return;
+    }
+    setFaydaLoading(true);
+    setFaydaError(null);
+    try {
+      const res = await faydaVerify(faydaNumber);
+      const data = res?.data ?? res;
+      setFaydaData(data);
+      // Auto-fill name if returned and currently empty
+      if (data?.full_name && !fullName) {
+        setFullName(data.full_name);
+      }
+      if (data?.gender && !gender) {
+        setGender(data.gender.toLowerCase() === "male" ? "male" : "female");
+      }
+    } catch (err: any) {
+      setFaydaError(err?.message || "FAYDA verification failed");
+    } finally {
+      setFaydaLoading(false);
+    }
+  };
+
   const handleContinue = () => {
     router.push({
       pathname: "/onboarding/otp" as any,
@@ -41,6 +80,7 @@ export default function OnboardingAgentScreen() {
         gender,
         nationalId,
         serviceArea,
+        faydaNumber: faydaData?.fayda_number || faydaNumber,
       },
     });
   };
@@ -67,6 +107,57 @@ export default function OnboardingAgentScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.form}
       >
+        <SectionTitle title="FAYDA Identity Verification" />
+
+        <FieldLabel label="FAYDA Number (12 digits)" required />
+        <View style={styles.faydaRow}>
+          <TextInput
+            style={[styles.input, styles.faydaInput]}
+            value={faydaNumber}
+            onChangeText={setFaydaNumber}
+            placeholder="123456789012"
+            placeholderTextColor="#8a8a8a"
+            keyboardType="number-pad"
+            maxLength={12}
+          />
+          <Pressable
+            style={[styles.faydaButton, faydaLoading && styles.buttonDisabled]}
+            onPress={handleVerifyFayda}
+            disabled={faydaLoading || faydaNumber.length !== 12}
+          >
+            {faydaLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <ThemedText type="defaultSemiBold" style={styles.faydaButtonText}>
+                Verify
+              </ThemedText>
+            )}
+          </Pressable>
+        </View>
+
+        {faydaError ? (
+          <View style={styles.faydaErrorBox}>
+            <MaterialIcons name="error-outline" size={16} color="#b00020" />
+            <ThemedText type="default" style={styles.faydaErrorText}>
+              {faydaError}
+            </ThemedText>
+          </View>
+        ) : null}
+
+        {faydaData?.verified ? (
+          <View style={styles.faydaSuccessBox}>
+            <MaterialIcons name="check-circle" size={18} color="#2e7d32" />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <ThemedText type="defaultSemiBold" style={styles.faydaSuccessTitle}>
+                Identity Verified
+              </ThemedText>
+              <ThemedText type="default" style={styles.faydaSuccessText}>
+                {faydaData.full_name} | {faydaData.gender} | DOB: {faydaData.date_of_birth}
+              </ThemedText>
+            </View>
+          </View>
+        ) : null}
+
         <SectionTitle title="Required" />
 
         <FieldLabel label="Full Name" required />
@@ -214,6 +305,42 @@ const styles = StyleSheet.create({
     borderColor: "rgba(10, 47, 74, 0.2)",
     color: "#0a2f4a",
   },
+  faydaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  faydaInput: { flex: 1 },
+  faydaButton: {
+    backgroundColor: "#0a2f4a",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 80,
+  },
+  faydaButtonText: { color: "#fff", fontWeight: "600" },
+  buttonDisabled: { opacity: 0.6 },
+  faydaErrorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#ffebee",
+    borderRadius: 6,
+  },
+  faydaErrorText: { marginLeft: 6, color: "#b00020", fontSize: 13, flex: 1 },
+  faydaSuccessBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: "#e8f5e9",
+    borderRadius: 8,
+  },
+  faydaSuccessTitle: { color: "#2e7d32", fontSize: 14 },
+  faydaSuccessText: { color: "#55656d", fontSize: 12, marginTop: 2 },
   genderRow: {
     flexDirection: "row",
     gap: 12,

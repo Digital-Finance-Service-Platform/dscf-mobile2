@@ -2,19 +2,28 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Pressable,
-    StyleSheet,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
+import {
+  authLogin,
+  marketRegisterAgent,
+  marketRegisterRetailer,
+  marketRegisterSupplier,
+  setAccessToken,
+} from "@/lib/api/clients";
+import { useSdk } from "@/lib/sdk/context";
 
 export default function PasswordCreationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { refreshToken } = useSdk();
   
   const role = Array.isArray(params.role) ? params.role[0] : params.role;
   
@@ -48,23 +57,114 @@ export default function PasswordCreationScreen() {
 
     setLoading(true);
 
-    // Mock delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      // Extract all collected onboarding data
+      const phone = Array.isArray(params.phone) ? params.phone[0] : params.phone;
+      const fullName = Array.isArray(params.fullName) ? params.fullName[0] : params.fullName;
+      const storeName = Array.isArray(params.storeName) ? params.storeName[0] : params.storeName;
+      const businessName = Array.isArray(params.businessName) ? params.businessName[0] : params.businessName;
+      const email = Array.isArray(params.email) ? params.email[0] : params.email;
+      const tin = Array.isArray(params.tin) ? params.tin[0] : params.tin;
+      const latitude = Array.isArray(params.latitude) ? params.latitude[0] : params.latitude;
+      const longitude = Array.isArray(params.longitude) ? params.longitude[0] : params.longitude;
+      const gender = Array.isArray(params.gender) ? params.gender[0] : params.gender;
+      const nationalId = Array.isArray(params.nationalId) ? params.nationalId[0] : params.nationalId;
+      const serviceArea = Array.isArray(params.serviceArea) ? params.serviceArea[0] : params.serviceArea;
+      const contactName = Array.isArray(params.contactName) ? params.contactName[0] : params.contactName;
+      const faydaNumber = Array.isArray(params.faydaNumber) ? params.faydaNumber[0] : params.faydaNumber;
 
-    // Pass all data including password to signup screen
-    const signupData = {
-      ...params,
-      password,
-      confirmPassword,
-    };
+      // The marketplace registration endpoints handle user creation themselves
+      // (including password). We do NOT call authSignup first to avoid phone
+      // conflicts. After registration, we login and sync the SDK.
 
-    setLoading(false);
+      // Step 1: Call role-specific registration endpoint
+      if (role === "supplier") {
+        // Build FormData for multipart upload
+        const formData = new FormData();
+        formData.append("business_name", businessName || fullName || "");
+        formData.append("contact_person_phone", phone || "");
+        formData.append("tin_number", tin || "");
+        formData.append("location", serviceArea || `${latitude || ""},${longitude || ""}`);
+        formData.append("password", password);
+        formData.append("password_confirmation", confirmPassword || password);
+        if (email) formData.append("email", email);
 
-    // Navigate to signup to complete registration
-    router.push({
-      pathname: "/signup",
-      params: signupData,
-    });
+        // Note: File upload requires the actual file URIs from earlier screens
+        // For now, we send the metadata. File upload can be added when document picker state is passed through.
+
+        await marketRegisterSupplier(formData);
+        
+        setLoading(false);
+        router.replace({
+          pathname: "/onboarding/pending-approval" as any,
+          params: { role: "supplier", status: "pending" },
+        });
+      } else if (role === "agent") {
+        await marketRegisterAgent({
+          name: fullName || "",
+          phone: phone || "",
+          service_area: serviceArea || "",
+          fayda_number: faydaNumber || nationalId || "",
+          gender: gender || "",
+          national_id: nationalId || "",
+          password,
+          password_confirmation: confirmPassword || password,
+        });
+
+        setLoading(false);
+        router.replace({
+          pathname: "/onboarding/pending-approval" as any,
+          params: { role: "agent", status: "pending" },
+        });
+      } else if (role === "retailer") {
+        // Marketplace endpoint handles user creation (requires password)
+        const regResult = await marketRegisterRetailer({
+          name: storeName || fullName || "",
+          phone: phone || "",
+          tin_number: tin || "",
+          location: `${latitude || ""},${longitude || ""}`,
+          password,
+          password_confirmation: confirmPassword || password,
+        });
+
+        // Extract tokens from registration response if returned
+        const regAccessToken =
+          regResult?.data?.access_token ??
+          regResult?.access_token ??
+          regResult?.data?.token ??
+          null;
+        const regRefreshToken =
+          regResult?.data?.refresh_token ??
+          regResult?.refresh_token ??
+          null;
+
+        if (regAccessToken) {
+          // Store tokens directly from registration response
+          await setAccessToken(regAccessToken, regRefreshToken ?? undefined);
+        } else {
+          // Fallback: login explicitly if registration didn't return tokens
+          try {
+            await authLogin({ email_or_phone: phone?.trim(), password });
+          } catch {
+            // Auto-login failed; user will need to login manually
+          }
+        }
+
+        // Always sync SDK state (triggers fetchUser for roles/permissions)
+        await refreshToken();
+
+        setLoading(false);
+        router.replace("/(tabs)");
+      } else {
+        // No role specified, just go to login
+        setLoading(false);
+        router.replace("/login");
+      }
+    } catch (e: any) {
+      setLoading(false);
+      const msg = e?.message ?? "Registration failed";
+      setError(msg);
+    }
   };
 
   return (
@@ -177,10 +277,19 @@ export default function PasswordCreationScreen() {
             <ActivityIndicator color="#fff" />
           ) : (
             <ThemedText type="defaultSemiBold" style={styles.continueText}>
-              Continue to Sign Up
+              Complete Registration
             </ThemedText>
           )}
         </Pressable>
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <MaterialIcons name="error-outline" size={18} color="#b00020" />
+            <ThemedText type="default" style={styles.errorText}>
+              {error}
+            </ThemedText>
+          </View>
+        ) : null}
       </View>
     </PageShell>
   );

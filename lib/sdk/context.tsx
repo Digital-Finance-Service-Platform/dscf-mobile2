@@ -8,6 +8,10 @@ type SdkContextType = {
   initialized: boolean;
   // increments each time clients are (re)configured
   refreshKey: number;
+  // current user profile from /core/auth/me
+  user: any | null;
+  // re-fetch user profile
+  fetchUser: () => Promise<void>;
 };
 
 export const SdkContext = createContext<SdkContextType>({
@@ -16,6 +20,8 @@ export const SdkContext = createContext<SdkContextType>({
   logout: async () => {},
   initialized: false,
   refreshKey: 0,
+  user: null,
+  fetchUser: async () => {},
 });
 
 export const useSdk = () => useContext(SdkContext);

@@ -1,11 +1,13 @@
-import React, { useState, useCallback, ReactNode, useEffect } from "react";
-import { getItemAsync } from "../secureStore";
+import React, { ReactNode, useCallback, useEffect, useState } from "react";
 import {
-  setAuthClient,
-  setMarketClient,
-  authLogout,
-  clearTokens,
+    authLogout,
+    authMe,
+    authRefresh,
+    clearTokens,
+    setAuthClient,
+    setMarketClient,
 } from "../api/clients";
+import { getItemAsync } from "../secureStore";
 import { SdkContext } from "./context";
 
 type SdkProviderProps = {
@@ -20,6 +22,7 @@ export function SdkProvider({ children, config }: SdkProviderProps) {
   const [token, setToken] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [user, setUser] = useState<any | null>(null);
 
   const refreshToken = useCallback(async () => {
     const storedToken = await getItemAsync("access_token");
@@ -35,6 +38,26 @@ export function SdkProvider({ children, config }: SdkProviderProps) {
     // bump refresh key so consumers can refetch data even when token didn't change
     setRefreshKey((k) => k + 1);
   }, [config]);
+
+  const fetchUser = useCallback(async () => {
+    try {
+      const res = await authMe();
+      // Handle nested response: { data: { user: {...} } } or { data: {...} } or flat
+      const userData = res?.data?.user ?? res?.data ?? res;
+      setUser(userData);
+    } catch (err) {
+      console.warn("[SdkProvider] fetchUser failed:", err);
+      // If 401, try refreshing token
+      try {
+        await authRefresh();
+        const res = await authMe();
+        const userData = res?.data?.user ?? res?.data ?? res;
+        setUser(userData);
+      } catch (refreshErr) {
+        console.warn("[SdkProvider] fetchUser retry failed:", refreshErr);
+      }
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -69,6 +92,7 @@ export function SdkProvider({ children, config }: SdkProviderProps) {
       ]);
       await clearTokens();
       setToken(null);
+      setUser(null);
       try {
         console.log("SdkProvider: logout finished");
       } catch (e) {}
@@ -83,9 +107,18 @@ export function SdkProvider({ children, config }: SdkProviderProps) {
     refreshToken();
   }, [refreshToken]);
 
+  // Fetch user profile when token becomes available
+  useEffect(() => {
+    if (initialized && token) {
+      fetchUser();
+    } else if (!token) {
+      setUser(null);
+    }
+  }, [initialized, token, fetchUser]);
+
   return (
     <SdkContext.Provider
-      value={{ token, refreshToken, initialized, logout, refreshKey }}
+      value={{ token, refreshToken, initialized, logout, refreshKey, user, fetchUser }}
     >
       {children}
     </SdkContext.Provider>

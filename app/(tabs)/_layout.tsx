@@ -4,11 +4,11 @@ import { Tabs, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
 import {
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 import { useCart } from "@/components/cart-context";
@@ -87,7 +87,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 function AppHeader() {
   const segments = useSegments();
   const { count } = useCart();
-  const { token, logout, refreshToken } = useSdk();
+  const { token, logout, refreshToken, user } = useSdk();
   const router = useRouter();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -101,6 +101,16 @@ function AppHeader() {
 
   const bg = "#FAF9F8";
   const iconColor = "#800000";
+
+  // Determine user role for menu items
+  const userRoles = user?.roles ?? [];
+  const permissions: string[] = user?.permissions ?? [];
+  const primaryRole = userRoles[0]?.code?.toLowerCase() ?? userRoles[0]?.name?.toLowerCase() ?? "";
+  const isSupplier = primaryRole === "supplier" || permissions.includes("supplier_products.my_products");
+  const isAgent = primaryRole === "agent" || permissions.some((p: string) => p.startsWith("agents."));
+  const userName = user?.user_profile
+    ? `${user.user_profile.first_name ?? ""} ${user.user_profile.last_name ?? ""}`.trim()
+    : user?.phone ?? user?.email ?? "User";
 
   return (
     <View style={[layoutStyles.header, { backgroundColor: bg }]}>
@@ -206,45 +216,65 @@ function AppHeader() {
               },
             },
             {
-              label: "Favorites",
-              icon: "favorite",
+              label: "My Business",
+              icon: "store",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/favorites" as any);
+                router.push("/profile/business" as any);
               },
             },
+            ...(isSupplier
+              ? [
+                  {
+                    label: "My Products",
+                    icon: "inventory",
+                    onPress: () => {
+                      setShowMenuModal(false);
+                      router.push("/supplier/products" as any);
+                    },
+                  },
+                  {
+                    label: "My Listings",
+                    icon: "list-alt",
+                    onPress: () => {
+                      setShowMenuModal(false);
+                      router.push("/supplier/listings" as any);
+                    },
+                  },
+                  {
+                    label: "Request Product",
+                    icon: "add-shopping-cart",
+                    onPress: () => {
+                      setShowMenuModal(false);
+                      router.push("/supplier/request-product" as any);
+                    },
+                  },
+                ]
+              : []),
+            ...(isAgent
+              ? [
+                  {
+                    label: "My Retailers",
+                    icon: "people",
+                    onPress: () => {
+                      setShowMenuModal(false);
+                      router.push("/agent/retailers" as any);
+                    },
+                  },
+                ]
+              : []),
             {
-              label: "Contact Us",
-              icon: "phone",
+              label: "Categories",
+              icon: "apps",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/contact" as any);
-              },
-            },
-            {
-              label: "Chatbot",
-              icon: "chat",
-              onPress: () => {
-                setShowMenuModal(false);
-                router.push("/chatbot" as any);
-              },
-            },
-            {
-              label: "Settings",
-              icon: "settings",
-              onPress: () => {
-                setShowMenuModal(false);
-                router.push("/settings" as any);
+                router.push("/categories");
               },
             },
             {
               label: "Log out",
               icon: "logout",
               onPress: () => {
-                // debug: trace menu logout press
-                try {
-                  console.log("AppHeader: Menu 'Log out' pressed");
-                } catch (e) {}
                 setShowMenuModal(false);
                 setShowLogoutModal(true);
               },

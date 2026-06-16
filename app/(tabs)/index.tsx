@@ -1,22 +1,22 @@
-import { Image } from "expo-image";
-import React, { useState, useMemo, useEffect } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { useSdk } from "@/lib/sdk/context";
-import { StyleSheet, View, Pressable, FlatList } from "react-native";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
+import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
+import { useCart } from "@/components/cart-context";
+import { FilterChips } from "@/components/filter-chips";
+import KeGebeyaLoader from "@/components/KeGebeyaLoader";
 import ParallaxScrollView from "@/components/parallax-scroll-view";
+import { ProductCard } from "@/components/product-card";
+import { SearchBar } from "@/components/search-bar";
+import { SectionHeader } from "@/components/section-header";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { SearchBar } from "@/components/search-bar";
-import { FilterChips } from "@/components/filter-chips";
-import { SectionHeader } from "@/components/section-header";
-import { ProductCard } from "@/components/product-card";
-import { useCart } from "@/components/cart-context";
-import { marketGetVisibleListings } from "@/lib/api/clients";
-import KeGebeyaLoader from "@/components/KeGebeyaLoader";
+import { marketGetAggregatorFeed, marketGetVisibleListings } from "@/lib/api/clients";
 import { formatCurrency } from "@/lib/formatters";
 
 const CATEGORIES = ["All", "Electronics", "Industrial", "Apparel"];
@@ -153,6 +153,7 @@ export default function HomeScreen() {
   );
 
   const [listings, setListings] = useState<any[]>([]);
+  const [aggregatorListings, setAggregatorListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -161,11 +162,21 @@ export default function HomeScreen() {
     (async () => {
       setLoading(true);
       try {
-        const res = await marketGetVisibleListings();
-        const data = Array.isArray(res?.data) ? res.data : res || [];
-        const items = data.map(mapApiListingToCard);
+        const [visibleRes, aggregatorRes] = await Promise.allSettled([
+          marketGetVisibleListings(),
+          marketGetAggregatorFeed(),
+        ]);
+        
+        const visibleData = visibleRes.status === "fulfilled"
+          ? (Array.isArray(visibleRes.value?.data) ? visibleRes.value.data : visibleRes.value || [])
+          : [];
+        const aggregatorData = aggregatorRes.status === "fulfilled"
+          ? (Array.isArray(aggregatorRes.value?.data) ? aggregatorRes.value.data : aggregatorRes.value || [])
+          : [];
+        
         if (mounted) {
-          setListings(items);
+          setListings(visibleData.map(mapApiListingToCard));
+          setAggregatorListings(aggregatorData.map(mapApiListingToCard));
           setError(null);
         }
       } catch (err) {
@@ -246,6 +257,27 @@ export default function HomeScreen() {
               <View style={{ height: insets.bottom + 26 }} />
             }
           />
+        )}
+
+        {/* Aggregator Listings Section */}
+        {aggregatorListings.length > 0 && (
+          <>
+            <SectionHeader
+              title="Aggregator Deals"
+              style={styles.sectionHeaderSmall}
+            />
+            <FlatList
+              data={aggregatorListings.slice(0, 6)}
+              keyExtractor={(i) => `agg-${i.id}`}
+              numColumns={2}
+              columnWrapperStyle={styles.columnWrap}
+              renderItem={({ item }) => <TrendingProductCard item={item} />}
+              scrollEnabled={false}
+              ListFooterComponent={
+                <View style={{ height: insets.bottom + 26 }} />
+              }
+            />
+          </>
         )}
       </ThemedView>
     </ParallaxScrollView>
