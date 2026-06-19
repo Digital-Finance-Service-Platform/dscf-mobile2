@@ -34,8 +34,27 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       // attempt login; send `email_or_phone` (server expects this key)
-      await authLogin({ email_or_phone: emailOrPhone, password });
+      const loginResult = await authLogin({ email_or_phone: emailOrPhone, password });
       await refreshToken();
+
+      // Check review_status from login response (per mobile-integration-agent-retailer.md)
+      const reviewStatus = loginResult?.data?.user?.review_status;
+
+      if (reviewStatus) {
+        const status = reviewStatus.status;
+        if (status === "pending" || status === "under_review") {
+          // User's marketplace account is pending review
+          const reviewType = reviewStatus.type || "user";
+          router.replace({
+            pathname: "/onboarding/pending-approval" as any,
+            params: { role: reviewType, status },
+          });
+          return;
+        }
+        // For rejected/modify/verified/approved — proceed to home
+        // (UI can show banners based on review_status from user state)
+      }
+
       router.replace("/(tabs)");
     } catch (err: any) {
       console.error("[LoginScreen] authLogin error", err);

@@ -306,13 +306,19 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
       },
     };
 
-    const requestBody = { user: userBody };
+    const requestBody: Record<string, any> = { user: userBody };
+
+    // Pass through agent/retailer blocks for atomic signup (per signup-agent-retailer.md)
+    if (payload.agent) requestBody.agent = payload.agent;
+    if (payload.retailer) requestBody.retailer = payload.retailer;
 
     // Don't log passwords
     console.log("[authSignup] POST", url, {
       email: requestBody.user.email,
       phone: requestBody.user.phone,
       first_name: requestBody.user.user_profile_attributes?.first_name,
+      has_agent: !!requestBody.agent,
+      has_retailer: !!requestBody.retailer,
     });
 
     const res = await fetch(url, {

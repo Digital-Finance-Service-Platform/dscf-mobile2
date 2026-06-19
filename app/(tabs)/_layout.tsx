@@ -102,12 +102,6 @@ function AppHeader() {
   const bg = "#FAF9F8";
   const iconColor = "#800000";
 
-  // Determine user role for menu items
-  const userRoles = user?.roles ?? [];
-  const permissions: string[] = user?.permissions ?? [];
-  const primaryRole = userRoles[0]?.code?.toLowerCase() ?? userRoles[0]?.name?.toLowerCase() ?? "";
-  const isSupplier = primaryRole === "supplier" || permissions.includes("supplier_products.my_products");
-  const isAgent = primaryRole === "agent" || permissions.some((p: string) => p.startsWith("agents."));
   const userName = user?.user_profile
     ? `${user.user_profile.first_name ?? ""} ${user.user_profile.last_name ?? ""}`.trim()
     : user?.phone ?? user?.email ?? "User";
@@ -215,54 +209,6 @@ function AppHeader() {
                 router.push("/profile" as any);
               },
             },
-            {
-              label: "My Business",
-              icon: "store",
-              onPress: () => {
-                setShowMenuModal(false);
-                router.push("/profile/business" as any);
-              },
-            },
-            ...(isSupplier
-              ? [
-                  {
-                    label: "My Products",
-                    icon: "inventory",
-                    onPress: () => {
-                      setShowMenuModal(false);
-                      router.push("/supplier/products" as any);
-                    },
-                  },
-                  {
-                    label: "My Listings",
-                    icon: "list-alt",
-                    onPress: () => {
-                      setShowMenuModal(false);
-                      router.push("/supplier/listings" as any);
-                    },
-                  },
-                  {
-                    label: "Request Product",
-                    icon: "add-shopping-cart",
-                    onPress: () => {
-                      setShowMenuModal(false);
-                      router.push("/supplier/request-product" as any);
-                    },
-                  },
-                ]
-              : []),
-            ...(isAgent
-              ? [
-                  {
-                    label: "My Retailers",
-                    icon: "people",
-                    onPress: () => {
-                      setShowMenuModal(false);
-                      router.push("/agent/retailers" as any);
-                    },
-                  },
-                ]
-              : []),
             {
               label: "Categories",
               icon: "apps",

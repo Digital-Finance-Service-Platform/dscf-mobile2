@@ -42,9 +42,7 @@ export default function ProfileScreen() {
 
   const profile = user?.user_profile ?? {};
   const roles = user?.roles ?? [];
-  const permissions = user?.permissions ?? [];
   const primaryRole = roles[0]?.name ?? roles[0]?.code ?? "User";
-  const roleCode = roles[0]?.code?.toUpperCase() ?? "";
 
   return (
     <PageShell title="Profile" showBackButton style={styles.shell}>
@@ -99,44 +97,6 @@ export default function ProfileScreen() {
 
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
-            Quick Actions
-          </ThemedText>
-          <ActionItem
-            icon="store"
-            label="My Business"
-            onPress={() => router.push("/profile/business" as any)}
-          />
-          {(primaryRole.toLowerCase() === "supplier" || roleCode === "USER") && (
-            <>
-              <ActionItem
-                icon="inventory"
-                label="My Products"
-                onPress={() => router.push("/supplier/products" as any)}
-              />
-              <ActionItem
-                icon="list-alt"
-                label="My Listings"
-                onPress={() => router.push("/supplier/listings" as any)}
-              />
-              <ActionItem
-                icon="add-shopping-cart"
-                label="Request Product"
-                onPress={() => router.push("/supplier/request-product" as any)}
-              />
-            </>
-          )}
-          {(primaryRole.toLowerCase() === "agent" || roleCode === "USER") && (
-            <ActionItem
-              icon="people"
-              label="My Retailers"
-              onPress={() => router.push("/agent/retailers" as any)}
-            />
-          )}
-        </View>
-
         {/* Logout */}
         <Pressable style={styles.logoutButton} onPress={handleLogout}>
           <MaterialIcons name="logout" size={20} color="#b00020" />
@@ -168,26 +128,6 @@ function InfoRow({
         {value}
       </ThemedText>
     </View>
-  );
-}
-
-function ActionItem({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof MaterialIcons.glyphMap;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable style={styles.actionItem} onPress={onPress}>
-      <MaterialIcons name={icon} size={20} color="#0a2f4a" />
-      <ThemedText type="default" style={styles.actionLabel}>
-        {label}
-      </ThemedText>
-      <MaterialIcons name="chevron-right" size={20} color="#6b6b6b" />
-    </Pressable>
   );
 }
 
@@ -251,14 +191,6 @@ const styles = StyleSheet.create({
   },
   infoLabel: { marginLeft: 10, color: "#6b6b6b", flex: 1 },
   infoValue: { color: "#0a2f4a", fontWeight: "500" },
-  actionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(10, 47, 74, 0.08)",
-  },
-  actionLabel: { marginLeft: 10, color: "#0a2f4a", flex: 1, fontSize: 15 },
   logoutButton: {
     flexDirection: "row",
     alignItems: "center",

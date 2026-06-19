@@ -13,8 +13,7 @@ import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 import {
   authLogin,
-  marketRegisterAgent,
-  marketRegisterRetailer,
+  authSignup,
   marketRegisterSupplier,
   setAccessToken,
 } from "@/lib/api/clients";
@@ -73,13 +72,12 @@ export default function PasswordCreationScreen() {
       const contactName = Array.isArray(params.contactName) ? params.contactName[0] : params.contactName;
       const faydaNumber = Array.isArray(params.faydaNumber) ? params.faydaNumber[0] : params.faydaNumber;
 
-      // The marketplace registration endpoints handle user creation themselves
-      // (including password). We do NOT call authSignup first to avoid phone
-      // conflicts. After registration, we login and sync the SDK.
+      // Branch by role:
+      // - Supplier: marketplace endpoint handles everything (not supported in authSignup)
+      // - Agent/Retailer: atomic authSignup with agent/retailer blocks (per spec)
 
-      // Step 1: Call role-specific registration endpoint
       if (role === "supplier") {
-        // Build FormData for multipart upload
+        // Supplier registration via marketplace endpoint only (creates its own user)
         const formData = new FormData();
         formData.append("business_name", businessName || fullName || "");
         formData.append("contact_person_phone", phone || "");
@@ -89,76 +87,107 @@ export default function PasswordCreationScreen() {
         formData.append("password_confirmation", confirmPassword || password);
         if (email) formData.append("email", email);
 
-        // Note: File upload requires the actual file URIs from earlier screens
-        // For now, we send the metadata. File upload can be added when document picker state is passed through.
+        const regResult = await marketRegisterSupplier(formData);
 
-        await marketRegisterSupplier(formData);
-        
+        // Extract tokens from response if returned
+        const accessToken =
+          regResult?.data?.access_token ?? regResult?.access_token ?? null;
+        const refreshTokenVal =
+          regResult?.data?.refresh_token ?? regResult?.refresh_token ?? null;
+
+        if (accessToken) {
+          await setAccessToken(accessToken, refreshTokenVal ?? undefined);
+        } else {
+          try {
+            await authLogin({ email_or_phone: phone?.trim(), password });
+          } catch { /* fallback */ }
+        }
+        await refreshToken();
+
         setLoading(false);
         router.replace({
           pathname: "/onboarding/pending-approval" as any,
           params: { role: "supplier", status: "pending" },
         });
-      } else if (role === "agent") {
-        await marketRegisterAgent({
-          name: fullName || "",
-          phone: phone || "",
-          service_area: serviceArea || "",
-          fayda_number: faydaNumber || nationalId || "",
-          gender: gender || "",
-          national_id: nationalId || "",
+      } else {
+        // Agent/Retailer: atomic creation via authSignup
+        const nameForSignup = fullName || businessName || storeName || phone || "User";
+        const parts = nameForSignup.trim().split(/\s+/);
+        const firstName = parts.shift() || "";
+        const lastName = parts.join(" ") || undefined;
+
+        const userBlock: Record<string, any> = {
+          email: email?.trim().toLowerCase() || undefined,
+          phone: phone?.trim(),
           password,
           password_confirmation: confirmPassword || password,
-        });
+          user_profile_attributes: {
+            first_name: firstName,
+            last_name: lastName,
+          },
+        };
 
-        setLoading(false);
-        router.replace({
-          pathname: "/onboarding/pending-approval" as any,
-          params: { role: "agent", status: "pending" },
-        });
-      } else if (role === "retailer") {
-        // Marketplace endpoint handles user creation (requires password)
-        const regResult = await marketRegisterRetailer({
-          name: storeName || fullName || "",
-          phone: phone || "",
-          tin_number: tin || "",
-          location: `${latitude || ""},${longitude || ""}`,
-          password,
-          password_confirmation: confirmPassword || password,
-        });
+        const signupPayload: Record<string, any> = { user: userBlock };
 
-        // Extract tokens from registration response if returned
-        const regAccessToken =
-          regResult?.data?.access_token ??
-          regResult?.access_token ??
-          regResult?.data?.token ??
-          null;
-        const regRefreshToken =
-          regResult?.data?.refresh_token ??
-          regResult?.refresh_token ??
-          null;
-
-        if (regAccessToken) {
-          // Store tokens directly from registration response
-          await setAccessToken(regAccessToken, regRefreshToken ?? undefined);
-        } else {
-          // Fallback: login explicitly if registration didn't return tokens
-          try {
-            await authLogin({ email_or_phone: phone?.trim(), password });
-          } catch {
-            // Auto-login failed; user will need to login manually
-          }
+        if (role === "agent") {
+          signupPayload.agent = {
+            name: fullName || "",
+            phone: phone || "",
+            service_area: serviceArea || "",
+            fayda_number: faydaNumber || nationalId || "",
+          };
+        } else if (role === "retailer") {
+          signupPayload.retailer = {
+            name: storeName || fullName || "",
+            phone: phone || "",
+            tin_number: tin || "",
+            location: `${latitude || ""},${longitude || ""}`,
+          };
         }
 
-        // Always sync SDK state (triggers fetchUser for roles/permissions)
+        const signupResult = await authSignup(signupPayload);
+
+        // Extract tokens and review_status from signup response
+        const accessToken =
+          signupResult?.data?.access_token ??
+          signupResult?.access_token ??
+          signupResult?.data?.token ??
+          null;
+        const refreshTokenVal =
+          signupResult?.data?.refresh_token ??
+          signupResult?.refresh_token ??
+          null;
+        const reviewStatus = signupResult?.data?.user?.review_status;
+
+        if (accessToken) {
+          await setAccessToken(accessToken, refreshTokenVal ?? undefined);
+        } else {
+          try {
+            await authLogin({ email_or_phone: phone?.trim(), password });
+          } catch { /* fallback */ }
+        }
         await refreshToken();
 
-        setLoading(false);
-        router.replace("/(tabs)");
-      } else {
-        // No role specified, just go to login
-        setLoading(false);
-        router.replace("/login");
+        // Navigate based on review_status from backend
+        if (reviewStatus?.status === "pending" || reviewStatus?.status === "under_review") {
+          setLoading(false);
+          router.replace({
+            pathname: "/onboarding/pending-approval" as any,
+            params: { role, status: reviewStatus.status },
+          });
+        } else if (role === "agent") {
+          setLoading(false);
+          router.replace({
+            pathname: "/onboarding/pending-approval" as any,
+            params: { role: "agent", status: "pending" },
+          });
+        } else if (role === "retailer") {
+          setLoading(false);
+          router.replace("/(tabs)");
+        } else {
+          setLoading(false);
+          router.replace("/login");
+        }
       }
     } catch (e: any) {
       setLoading(false);

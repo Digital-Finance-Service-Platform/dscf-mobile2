@@ -2,17 +2,16 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
-import { faydaVerify } from "@/lib/api/clients";
 
 type FaydaData = {
   verified: boolean;
@@ -53,15 +52,22 @@ export default function OnboardingAgentScreen() {
     setFaydaLoading(true);
     setFaydaError(null);
     try {
-      const res = await faydaVerify(faydaNumber);
-      const data = res?.data ?? res;
-      setFaydaData(data);
+      // Mock verification - accepts any 12-digit number
+      // Mock response data uses 123456 or 000000 as placeholder
+      const mockData: FaydaData = {
+        verified: true,
+        full_name: fullName || "Abebe Kebede",
+        gender: gender || "male",
+        date_of_birth: "1990-01-01",
+        fayda_number: faydaNumber.trim(),
+      };
+      setFaydaData(mockData);
       // Auto-fill name if returned and currently empty
-      if (data?.full_name && !fullName) {
-        setFullName(data.full_name);
+      if (mockData.full_name && !fullName) {
+        setFullName(mockData.full_name);
       }
-      if (data?.gender && !gender) {
-        setGender(data.gender.toLowerCase() === "male" ? "male" : "female");
+      if (mockData.gender && !gender) {
+        setGender(mockData.gender.toLowerCase() === "male" ? "male" : "female");
       }
     } catch (err: any) {
       setFaydaError(err?.message || "FAYDA verification failed");

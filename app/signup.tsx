@@ -34,6 +34,14 @@ export default function SignupScreen() {
     (Array.isArray(params.businessName) ? params.businessName[0] : params.businessName) ||
     "";
 
+  // Onboarding data for agent/retailer blocks
+  const onboardingTin = Array.isArray(params.tin) ? params.tin[0] : params.tin;
+  const onboardingLatitude = Array.isArray(params.latitude) ? params.latitude[0] : params.latitude;
+  const onboardingLongitude = Array.isArray(params.longitude) ? params.longitude[0] : params.longitude;
+  const onboardingServiceArea = Array.isArray(params.serviceArea) ? params.serviceArea[0] : params.serviceArea;
+  const onboardingFaydaNumber = Array.isArray(params.faydaNumber) ? params.faydaNumber[0] : params.faydaNumber;
+  const onboardingNationalId = Array.isArray(params.nationalId) ? params.nationalId[0] : params.nationalId;
+
   const [name, setName] = useState(initialName || "");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState(initialPhone || "");
@@ -61,7 +69,7 @@ export default function SignupScreen() {
       const firstName = parts.shift() || "";
       const lastName = parts.join(" ") || undefined;
 
-      await authSignup({
+      const signupPayload: Record<string, any> = {
         user: {
           email: email.trim().toLowerCase(),
           phone: phone.trim() || undefined,
@@ -72,22 +80,49 @@ export default function SignupScreen() {
             last_name: lastName,
           },
         },
-      });
+      };
+
+      // Attach agent block if onboarding as agent (per mobile-integration-agent-retailer.md)
+      if (role === "agent") {
+        signupPayload.agent = {
+          name: name.trim(),
+          phone: phone.trim(),
+          service_area: onboardingServiceArea || "",
+          fayda_number: onboardingFaydaNumber || onboardingNationalId || "",
+        };
+      }
+
+      // Attach retailer block if onboarding as retailer
+      if (role === "retailer" || role === "retailor") {
+        signupPayload.retailer = {
+          name: name.trim(),
+          phone: phone.trim(),
+          tin_number: onboardingTin || "",
+          location: onboardingLatitude && onboardingLongitude
+            ? `${onboardingLatitude},${onboardingLongitude}`
+            : onboardingServiceArea || "",
+        };
+      }
+
+      const signupResult = await authSignup(signupPayload);
+
+      // Check review_status from response to determine navigation
+      const reviewStatus = signupResult?.data?.user?.review_status;
 
       // Role-specific post-signup navigation
-      if (role === "retailer") {
+      if (reviewStatus?.status === "pending" || reviewStatus?.status === "under_review") {
+        router.replace({
+          pathname: "/onboarding/pending-approval" as any,
+          params: { role, status: reviewStatus.status },
+        });
+      } else if (role === "retailer" || role === "retailor") {
         // Retailers can login immediately
         router.replace("/login");
       } else if (role === "supplier" || role === "agent") {
         // Suppliers and agents need approval
         router.replace({
           pathname: "/onboarding/pending-approval" as any,
-          params: { 
-            role, 
-            status: "pending",
-            // Mock: in real implementation, agentId would come from backend
-            agentId: role === "agent" ? "AGT-" + Math.random().toString(36).substring(2, 11).toUpperCase() : undefined,
-          },
+          params: { role, status: "pending" },
         });
       } else {
         // Default to login
