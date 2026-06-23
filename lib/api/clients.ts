@@ -515,6 +515,47 @@ export async function marketGetMyProducts(): Promise<any> {
   return marketFetch("/supplier_products/my_products", { method: "GET" });
 }
 
+export async function marketGetProductById(id: number | string): Promise<any> {
+  return marketFetch(`/products/${id}`, { method: "GET" });
+}
+
+export async function marketCreateSupplierProduct(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/supplier_products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketUpdateSupplierProduct(
+  id: number | string,
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketApproveSupplierProduct(
+  id: number | string,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}/approve`, { method: "POST" });
+}
+
+export async function marketRejectSupplierProduct(
+  id: number | string,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}/reject`, { method: "POST" });
+}
+
+export async function marketDeleteSupplierProduct(
+  id: number | string,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}`, { method: "DELETE" });
+}
+
 export async function marketGetMyListings(): Promise<any> {
   return marketFetch("/listings/my_listings", { method: "GET" });
 }

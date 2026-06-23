@@ -19,8 +19,23 @@ export default function OtpVerificationScreen() {
   const phone = Array.isArray(params.phone) ? params.phone[0] : params.phone;
   const role = Array.isArray(params.role) ? params.role[0] : params.role;
   
-  // Pass through all collected data
-  const collectedData = { ...params };
+  // Explicitly extract all onboarding data to pass through
+  const fullName = Array.isArray(params.fullName) ? params.fullName[0] : params.fullName;
+  const firstName = Array.isArray(params.firstName) ? params.firstName[0] : params.firstName;
+  const lastName = Array.isArray(params.lastName) ? params.lastName[0] : params.lastName;
+  const gender = Array.isArray(params.gender) ? params.gender[0] : params.gender;
+  const nationalId = Array.isArray(params.nationalId) ? params.nationalId[0] : params.nationalId;
+  const serviceArea = Array.isArray(params.serviceArea) ? params.serviceArea[0] : params.serviceArea;
+  const faydaNumber = Array.isArray(params.faydaNumber) ? params.faydaNumber[0] : params.faydaNumber;
+  // Retailer fields
+  const storeName = Array.isArray(params.storeName) ? params.storeName[0] : params.storeName;
+  const tin = Array.isArray(params.tin) ? params.tin[0] : params.tin;
+  const latitude = Array.isArray(params.latitude) ? params.latitude[0] : params.latitude;
+  const longitude = Array.isArray(params.longitude) ? params.longitude[0] : params.longitude;
+  // Supplier fields
+  const businessName = Array.isArray(params.businessName) ? params.businessName[0] : params.businessName;
+  const contactName = Array.isArray(params.contactName) ? params.contactName[0] : params.contactName;
+  const email = Array.isArray(params.email) ? params.email[0] : params.email;
   
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
@@ -86,10 +101,27 @@ export default function OtpVerificationScreen() {
 
     setLoading(false);
     
-    // Navigate to password creation
+    // Navigate to password creation with all onboarding data
     router.push({
       pathname: "/onboarding/password" as any,
-      params: collectedData,
+      params: {
+        role,
+        phone,
+        fullName,
+        firstName,
+        lastName,
+        gender,
+        nationalId,
+        serviceArea,
+        faydaNumber,
+        storeName,
+        tin,
+        latitude,
+        longitude,
+        businessName,
+        contactName,
+        email,
+      },
     });
   };
 
@@ -114,7 +146,7 @@ export default function OtpVerificationScreen() {
         {otp.map((digit, index) => (
           <TextInput
             key={index}
-            ref={(ref) => (inputRefs.current[index] = ref)}
+            ref={(ref) => { inputRefs.current[index] = ref; }}
             style={[styles.otpInput, digit && styles.otpInputFilled]}
             value={digit}
             onChangeText={(value) => handleOtpChange(value, index)}

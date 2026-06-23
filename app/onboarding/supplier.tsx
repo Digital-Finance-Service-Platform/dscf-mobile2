@@ -4,13 +4,13 @@ import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
 } from "react-native";
 import MapView, { Marker, UrlTile, type MapPressEvent } from "react-native-maps";
 
@@ -39,7 +39,7 @@ export default function OnboardingSupplierScreen() {
   const [businessName, setBusinessName] = useState("");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
-  const [tin, setTin] = useState("");
+  const [gender, setGender] = useState<"male" | "female" | "">("");
   const [pin, setPin] = useState<Coordinate | null>(null);
   const [licenseFile, setLicenseFile] = useState<UploadAsset | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -56,12 +56,12 @@ export default function OnboardingSupplierScreen() {
       !businessName.trim() ||
       !contactName.trim() ||
       !phone.trim() ||
-      !tin.trim() ||
+      !gender ||
       !pin ||
       !licenseFile ||
       !termsAccepted
     );
-  }, [businessName, contactName, phone, tin, pin, licenseFile, termsAccepted]);
+  }, [businessName, contactName, phone, gender, pin, licenseFile, termsAccepted]);
 
   const handleMapPress = (event: MapPressEvent) => {
     setPin(event.nativeEvent.coordinate);
@@ -139,7 +139,7 @@ export default function OnboardingSupplierScreen() {
         businessName,
         contactName,
         phone,
-        tin,
+        gender,
         latitude: pin?.latitude,
         longitude: pin?.longitude,
         email,
@@ -192,23 +192,66 @@ export default function OnboardingSupplierScreen() {
         />
 
         <FieldLabel label="Phone Number" required />
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="+251 9xx xxx xxx"
-          placeholderTextColor="#8a8a8a"
-          keyboardType="phone-pad"
-        />
+        <View style={styles.phoneInputRow}>
+          <ThemedText type="default" style={styles.phonePrefix}>+251</ThemedText>
+          <TextInput
+            style={[styles.input, styles.phoneInput]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="9xx xxx xxx"
+            placeholderTextColor="#8a8a8a"
+            keyboardType="phone-pad"
+          />
+        </View>
 
-        <FieldLabel label="TIN Number" required />
-        <TextInput
-          style={styles.input}
-          value={tin}
-          onChangeText={setTin}
-          placeholder="Enter TIN number"
-          placeholderTextColor="#8a8a8a"
-        />
+        <FieldLabel label="Gender" required />
+        <View style={styles.genderRow}>
+          <Pressable
+            style={[
+              styles.genderButton,
+              gender === "male" && styles.genderButtonActive,
+            ]}
+            onPress={() => setGender("male")}
+          >
+            <MaterialIcons
+              name={gender === "male" ? "radio-button-checked" : "radio-button-unchecked"}
+              size={20}
+              color={gender === "male" ? "#0a2f4a" : "#6b6b6b"}
+            />
+            <ThemedText
+              type="default"
+              style={[
+                styles.genderText,
+                gender === "male" && styles.genderTextActive,
+              ]}
+            >
+              Male
+            </ThemedText>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.genderButton,
+              gender === "female" && styles.genderButtonActive,
+            ]}
+            onPress={() => setGender("female")}
+          >
+            <MaterialIcons
+              name={gender === "female" ? "radio-button-checked" : "radio-button-unchecked"}
+              size={20}
+              color={gender === "female" ? "#0a2f4a" : "#6b6b6b"}
+            />
+            <ThemedText
+              type="default"
+              style={[
+                styles.genderText,
+                gender === "female" && styles.genderTextActive,
+              ]}
+            >
+              Female
+            </ThemedText>
+          </Pressable>
+        </View>
 
         <FieldLabel label="Shop Location on Map" required />
         <ThemedText type="default" style={styles.mapHint}>
@@ -411,6 +454,25 @@ const styles = StyleSheet.create({
     borderColor: "rgba(10, 47, 74, 0.2)",
     color: "#0a2f4a",
   },
+  phoneInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(10, 47, 74, 0.2)",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+  },
+  phonePrefix: {
+    color: "#0a2f4a",
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  phoneInput: {
+    flex: 1,
+    borderWidth: 0,
+    paddingHorizontal: 0,
+  },
   mapHint: {
     color: "#6b6b6b",
     fontSize: 13,
@@ -455,6 +517,35 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   infoText: { marginLeft: 8, color: "#2e7d32", fontSize: 12 },
+  genderRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  genderButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(10, 47, 74, 0.2)",
+    backgroundColor: "#fff",
+  },
+  genderButtonActive: {
+    borderColor: "#0a2f4a",
+    borderWidth: 2,
+    backgroundColor: "rgba(10, 47, 74, 0.05)",
+  },
+  genderText: {
+    marginLeft: 8,
+    color: "#6b6b6b",
+  },
+  genderTextActive: {
+    color: "#0a2f4a",
+    fontWeight: "600",
+  },
   uploadRow: {
     flexDirection: "row",
     alignItems: "center",

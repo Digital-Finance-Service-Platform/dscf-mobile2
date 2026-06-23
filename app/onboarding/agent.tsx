@@ -27,7 +27,6 @@ export default function OnboardingAgentScreen() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "">("");
-  const [nationalId, setNationalId] = useState("");
   const [serviceArea, setServiceArea] = useState("");
   const [faydaNumber, setFaydaNumber] = useState("");
   const [faydaData, setFaydaData] = useState<FaydaData | null>(null);
@@ -39,10 +38,9 @@ export default function OnboardingAgentScreen() {
       !fullName.trim() ||
       !phone.trim() ||
       !gender ||
-      !nationalId.trim() ||
       !serviceArea.trim()
     );
-  }, [fullName, phone, gender, nationalId, serviceArea]);
+  }, [fullName, phone, gender, serviceArea]);
 
   const handleVerifyFayda = async () => {
     if (!faydaNumber.trim() || faydaNumber.length !== 12) {
@@ -84,7 +82,6 @@ export default function OnboardingAgentScreen() {
         fullName,
         phone,
         gender,
-        nationalId,
         serviceArea,
         faydaNumber: faydaData?.fayda_number || faydaNumber,
       },
@@ -176,14 +173,17 @@ export default function OnboardingAgentScreen() {
         />
 
         <FieldLabel label="Phone Number" required />
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="+251 9xx xxx xxx"
-          placeholderTextColor="#8a8a8a"
-          keyboardType="phone-pad"
-        />
+        <View style={styles.phoneInputRow}>
+          <ThemedText type="default" style={styles.phonePrefix}>+251</ThemedText>
+          <TextInput
+            style={[styles.input, styles.phoneInput]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="9xx xxx xxx"
+            placeholderTextColor="#8a8a8a"
+            keyboardType="phone-pad"
+          />
+        </View>
 
         <FieldLabel label="Gender" required />
         <View style={styles.genderRow}>
@@ -233,15 +233,6 @@ export default function OnboardingAgentScreen() {
             </ThemedText>
           </Pressable>
         </View>
-
-        <FieldLabel label="National ID Number" required />
-        <TextInput
-          style={styles.input}
-          value={nationalId}
-          onChangeText={setNationalId}
-          placeholder="Enter your national ID"
-          placeholderTextColor="#8a8a8a"
-        />
 
         <FieldLabel label="Service Location Area" required />
         <TextInput
@@ -310,6 +301,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(10, 47, 74, 0.2)",
     color: "#0a2f4a",
+  },
+  phoneInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(10, 47, 74, 0.2)",
+    borderRadius: 10,
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+  },
+  phonePrefix: {
+    color: "#0a2f4a",
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  phoneInput: {
+    flex: 1,
+    borderWidth: 0,
+    paddingHorizontal: 0,
   },
   faydaRow: {
     flexDirection: "row",

@@ -5,16 +5,16 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from "react-native";
 
 export default function SignupScreen() {
@@ -28,11 +28,10 @@ export default function SignupScreen() {
   
   // Pre-fill from onboarding flow if available
   const initialPhone = Array.isArray(params.phone) ? params.phone[0] : params.phone;
-  const initialName = 
-    (Array.isArray(params.fullName) ? params.fullName[0] : params.fullName) ||
-    (Array.isArray(params.storeName) ? params.storeName[0] : params.storeName) ||
-    (Array.isArray(params.businessName) ? params.businessName[0] : params.businessName) ||
-    "";
+  const initialFirstName = 
+    (Array.isArray(params.firstName) ? params.firstName[0] : params.firstName) || "";
+  const initialLastName = 
+    (Array.isArray(params.lastName) ? params.lastName[0] : params.lastName) || "";
 
   // Onboarding data for agent/retailer blocks
   const onboardingTin = Array.isArray(params.tin) ? params.tin[0] : params.tin;
@@ -41,8 +40,10 @@ export default function SignupScreen() {
   const onboardingServiceArea = Array.isArray(params.serviceArea) ? params.serviceArea[0] : params.serviceArea;
   const onboardingFaydaNumber = Array.isArray(params.faydaNumber) ? params.faydaNumber[0] : params.faydaNumber;
   const onboardingNationalId = Array.isArray(params.nationalId) ? params.nationalId[0] : params.nationalId;
+  const onboardingGender = Array.isArray(params.gender) ? params.gender[0] : params.gender;
 
-  const [name, setName] = useState(initialName || "");
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState(initialPhone || "");
   const [pass, setPass] = useState(password || "");
@@ -54,7 +55,7 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     setError(null);
-    if (!name.trim() || !email.trim() || !pass) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !pass) {
       setError("Please complete all fields");
       return;
     }
@@ -65,28 +66,29 @@ export default function SignupScreen() {
 
     setLoading(true);
     try {
-      const parts = name.trim().split(/\s+/);
-      const firstName = parts.shift() || "";
-      const lastName = parts.join(" ") || undefined;
+      const fullPhone = phone.trim() ? (phone.startsWith("+251") ? phone.trim() : `+251${phone.trim()}`) : undefined;
 
       const signupPayload: Record<string, any> = {
         user: {
           email: email.trim().toLowerCase(),
-          phone: phone.trim() || undefined,
+          phone: fullPhone,
           password: pass,
           password_confirmation: confirm || pass,
           user_profile_attributes: {
-            first_name: firstName,
-            last_name: lastName,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            gender: onboardingGender || undefined,
           },
         },
       };
 
+      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
+
       // Attach agent block if onboarding as agent (per mobile-integration-agent-retailer.md)
       if (role === "agent") {
         signupPayload.agent = {
-          name: name.trim(),
-          phone: phone.trim(),
+          name: displayName,
+          phone: fullPhone,
           service_area: onboardingServiceArea || "",
           fayda_number: onboardingFaydaNumber || onboardingNationalId || "",
         };
@@ -95,8 +97,8 @@ export default function SignupScreen() {
       // Attach retailer block if onboarding as retailer
       if (role === "retailer" || role === "retailor") {
         signupPayload.retailer = {
-          name: name.trim(),
-          phone: phone.trim(),
+          name: displayName,
+          phone: fullPhone,
           tin_number: onboardingTin || "",
           location: onboardingLatitude && onboardingLongitude
             ? `${onboardingLatitude},${onboardingLongitude}`
@@ -106,16 +108,8 @@ export default function SignupScreen() {
 
       const signupResult = await authSignup(signupPayload);
 
-      // Check review_status from response to determine navigation
-      const reviewStatus = signupResult?.data?.user?.review_status;
-
-      // Role-specific post-signup navigation
-      if (reviewStatus?.status === "pending" || reviewStatus?.status === "under_review") {
-        router.replace({
-          pathname: "/onboarding/pending-approval" as any,
-          params: { role, status: reviewStatus.status },
-        });
-      } else if (role === "retailer" || role === "retailor") {
+      // Role-specific post-signup navigation — retailers go directly to login
+      if (role === "retailer" || role === "retailor") {
         // Retailers can login immediately
         router.replace("/login");
       } else if (role === "supplier" || role === "agent") {
@@ -150,13 +144,9 @@ export default function SignupScreen() {
         >
         <View style={styles.headerWrap}>
           <Image
-            source={require("@/assets/images/new5.png")}
+            source={require("@/assets/images/new6.png")}
             style={styles.headerImage}
             contentFit="cover"
-          />
-          <Image
-            source={require("@/assets/images/logo.png")}
-            style={styles.logo}
           />
         </View>
 
@@ -165,14 +155,26 @@ export default function SignupScreen() {
             Sign up
           </ThemedText>
 
-          <Text style={styles.fieldLabel}>Full Name</Text>
+          <Text style={styles.fieldLabel}>First Name</Text>
           <View style={styles.inputBox}>
             <MaterialIcons name="person-outline" size={18} color="#0a2f4a" />
             <TextInput
               style={styles.inputText}
-              value={name}
-              onChangeText={setName}
-              placeholder="enter your full name"
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="enter your first name"
+              placeholderTextColor="#9a9a9a"
+            />
+          </View>
+
+          <Text style={[styles.fieldLabel, { marginTop: 5 }]}>Last Name</Text>
+          <View style={styles.inputBox}>
+            <MaterialIcons name="person-outline" size={18} color="#0a2f4a" />
+            <TextInput
+              style={styles.inputText}
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="enter your last name"
               placeholderTextColor="#9a9a9a"
             />
           </View>
@@ -194,11 +196,12 @@ export default function SignupScreen() {
           <Text style={[styles.fieldLabel, { marginTop: 5 }]}>Phone</Text>
           <View style={styles.inputBox}>
             <MaterialIcons name="phone-android" size={18} color="#0a2f4a" />
+            <Text style={styles.phonePrefix}>+251</Text>
             <TextInput
               style={styles.inputText}
               value={phone}
               onChangeText={setPhone}
-              placeholder="+251912345678"
+              placeholder="9xx xxx xxx"
               placeholderTextColor="#9a9a9a"
               keyboardType="phone-pad"
             />
@@ -278,9 +281,9 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#fff" },
-  container: { flexGrow: 1, paddingBottom: 0 },
+  container: { flexGrow: 1, paddingBottom: 40 },
   // make header responsive using percentage height and a minHeight
-  headerWrap: { height: "42%", minHeight: 310, position: "relative" },
+  headerWrap: { height: "35%", minHeight: 260, position: "relative" },
   // image fills the header container
   headerImage: { width: "100%", height: "100%" },
   logo: {
@@ -290,14 +293,20 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     top: -15,
   },
-  formWrap: { padding: 20, marginTop: -30 },
+  formWrap: { padding: 20, marginTop: -10 },
   title: {
     fontSize: 38,
     lineHeight: 44,
     fontWeight: "800",
     marginBottom: 10,
-    color: "#0a2f4a",
     marginTop: -50,
+    color: "#fff",
+  },
+  phonePrefix: {
+    color: "#0a2f4a",
+    fontWeight: "600",
+    marginLeft: 6,
+    marginRight: 4,
   },
   fieldLabel: {
     color: "#0a2f4a",

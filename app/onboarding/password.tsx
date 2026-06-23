@@ -60,6 +60,8 @@ export default function PasswordCreationScreen() {
       // Extract all collected onboarding data
       const phone = Array.isArray(params.phone) ? params.phone[0] : params.phone;
       const fullName = Array.isArray(params.fullName) ? params.fullName[0] : params.fullName;
+      const firstNameParam = Array.isArray(params.firstName) ? params.firstName[0] : params.firstName;
+      const lastNameParam = Array.isArray(params.lastName) ? params.lastName[0] : params.lastName;
       const storeName = Array.isArray(params.storeName) ? params.storeName[0] : params.storeName;
       const businessName = Array.isArray(params.businessName) ? params.businessName[0] : params.businessName;
       const email = Array.isArray(params.email) ? params.email[0] : params.email;
@@ -72,6 +74,10 @@ export default function PasswordCreationScreen() {
       const contactName = Array.isArray(params.contactName) ? params.contactName[0] : params.contactName;
       const faydaNumber = Array.isArray(params.faydaNumber) ? params.faydaNumber[0] : params.faydaNumber;
 
+      // Prepend +251 country code to phone if not already present
+      const rawPhone = phone?.trim() || "";
+      const fullPhone = rawPhone ? (rawPhone.startsWith("+251") ? rawPhone : `+251${rawPhone}`) : "";
+
       // Branch by role:
       // - Supplier: marketplace endpoint handles everything (not supported in authSignup)
       // - Agent/Retailer: atomic authSignup with agent/retailer blocks (per spec)
@@ -80,12 +86,14 @@ export default function PasswordCreationScreen() {
         // Supplier registration via marketplace endpoint only (creates its own user)
         const formData = new FormData();
         formData.append("business_name", businessName || fullName || "");
-        formData.append("contact_person_phone", phone || "");
+        formData.append("contact_person_name", contactName || "");
+        formData.append("contact_person_phone", fullPhone || "");
         formData.append("tin_number", tin || "");
         formData.append("location", serviceArea || `${latitude || ""},${longitude || ""}`);
         formData.append("password", password);
         formData.append("password_confirmation", confirmPassword || password);
         if (email) formData.append("email", email);
+        if (gender) formData.append("gender", gender);
 
         const regResult = await marketRegisterSupplier(formData);
 
@@ -99,7 +107,7 @@ export default function PasswordCreationScreen() {
           await setAccessToken(accessToken, refreshTokenVal ?? undefined);
         } else {
           try {
-            await authLogin({ email_or_phone: phone?.trim(), password });
+            await authLogin({ email_or_phone: fullPhone, password });
           } catch { /* fallback */ }
         }
         await refreshToken();
@@ -111,19 +119,19 @@ export default function PasswordCreationScreen() {
         });
       } else {
         // Agent/Retailer: atomic creation via authSignup
-        const nameForSignup = fullName || businessName || storeName || phone || "User";
-        const parts = nameForSignup.trim().split(/\s+/);
-        const firstName = parts.shift() || "";
-        const lastName = parts.join(" ") || undefined;
+        const nameForSignup = fullName || [firstNameParam, lastNameParam].filter(Boolean).join(" ") || businessName || storeName || phone || "User";
+        const firstName = firstNameParam || fullName?.split(/\s+/)[0] || nameForSignup.split(/\s+/)[0] || "";
+        const lastName = lastNameParam || fullName?.split(/\s+/).slice(1).join(" ") || nameForSignup.split(/\s+/).slice(1).join(" ") || undefined;
 
         const userBlock: Record<string, any> = {
           email: email?.trim().toLowerCase() || undefined,
-          phone: phone?.trim(),
+          phone: fullPhone || undefined,
           password,
           password_confirmation: confirmPassword || password,
           user_profile_attributes: {
             first_name: firstName,
             last_name: lastName,
+            gender: gender || undefined,
           },
         };
 
@@ -132,19 +140,20 @@ export default function PasswordCreationScreen() {
         if (role === "agent") {
           signupPayload.agent = {
             name: fullName || "",
-            phone: phone || "",
+            phone: fullPhone,
             service_area: serviceArea || "",
             fayda_number: faydaNumber || nationalId || "",
           };
         } else if (role === "retailer") {
           signupPayload.retailer = {
-            name: storeName || fullName || "",
-            phone: phone || "",
+            name: nameForSignup,
+            phone: fullPhone,
             tin_number: tin || "",
             location: `${latitude || ""},${longitude || ""}`,
           };
         }
 
+        console.log("[Password] Signup payload:", JSON.stringify(signupPayload, null, 2));
         const signupResult = await authSignup(signupPayload);
 
         // Extract tokens and review_status from signup response
@@ -163,13 +172,16 @@ export default function PasswordCreationScreen() {
           await setAccessToken(accessToken, refreshTokenVal ?? undefined);
         } else {
           try {
-            await authLogin({ email_or_phone: phone?.trim(), password });
+            await authLogin({ email_or_phone: fullPhone, password });
           } catch { /* fallback */ }
         }
         await refreshToken();
 
-        // Navigate based on review_status from backend
-        if (reviewStatus?.status === "pending" || reviewStatus?.status === "under_review") {
+        // Navigate based on role — retailers go directly to home
+        if (role === "retailer") {
+          setLoading(false);
+          router.replace("/(tabs)");
+        } else if (reviewStatus?.status === "pending" || reviewStatus?.status === "under_review") {
           setLoading(false);
           router.replace({
             pathname: "/onboarding/pending-approval" as any,
@@ -181,9 +193,6 @@ export default function PasswordCreationScreen() {
             pathname: "/onboarding/pending-approval" as any,
             params: { role: "agent", status: "pending" },
           });
-        } else if (role === "retailer") {
-          setLoading(false);
-          router.replace("/(tabs)");
         } else {
           setLoading(false);
           router.replace("/login");

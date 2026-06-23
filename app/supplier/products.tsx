@@ -122,7 +122,7 @@ export default function SupplierProductsScreen() {
       showBackButton
       style={styles.shell}
       rightNode={
-        <Pressable onPress={() => router.push("/supplier/request-product" as any)}>
+        <Pressable onPress={() => router.push("/supplier/create-product" as any)}>
           <MaterialIcons name="add-circle" size={24} color="#0a2f4a" />
         </Pressable>
       }

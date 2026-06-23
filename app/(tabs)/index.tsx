@@ -16,10 +16,8 @@ import { SearchBar } from "@/components/search-bar";
 import { SectionHeader } from "@/components/section-header";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { marketGetAggregatorFeed, marketGetVisibleListings } from "@/lib/api/clients";
+import { marketGetAggregatorFeed, marketGetProducts, marketGetVisibleListings } from "@/lib/api/clients";
 import { formatCurrency } from "@/lib/formatters";
-
-const CATEGORIES = ["All", "Electronics", "Industrial", "Apparel"];
 
 // Removed hardcoded TRENDING fixture — listings are loaded from the API only.
 
@@ -46,6 +44,24 @@ function mapApiListingToCard(listing: any) {
   };
 }
 
+function mapProductToCard(product: any) {
+  const thumbnail = product?.thumbnail_url ?? null;
+  const image = thumbnail
+    ? { uri: thumbnail }
+    : require("@/assets/images/logo1.png");
+  const title = product?.name ?? "Untitled";
+  const category = product?.category?.name ?? "";
+  const price = product?.price_per_unit ?? 0;
+  return {
+    id: String(product?.id),
+    title,
+    category,
+    price,
+    image,
+    raw: product,
+  };
+}
+
 function SearchBarComponent() {
   return <SearchBar />;
 }
@@ -53,11 +69,13 @@ function SearchBarComponent() {
 function CategoryChips({
   active,
   onSelect,
+  categories,
 }: {
   active: string;
   onSelect: (c: string) => void;
+  categories: string[];
 }) {
-  const filters = CATEGORIES.map((cat) => ({ key: cat, label: cat }));
+  const filters = categories.map((cat) => ({ key: cat, label: cat }));
   return <FilterChips filters={filters} active={active} onSelect={onSelect} />;
 }
 
@@ -148,35 +166,48 @@ export default function HomeScreen() {
     _t = undefined;
   }
   const { token, refreshKey } = useSdk();
-  const [selectedCategory, setSelectedCategory] = useState<string>(
-    CATEGORIES[0],
-  );
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   const [listings, setListings] = useState<any[]>([]);
   const [aggregatorListings, setAggregatorListings] = useState<any[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Dynamically build categories from loaded products
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    catalogProducts.forEach((p) => {
+      if (p.category) cats.add(p.category);
+    });
+    return ["All", ...Array.from(cats)];
+  }, [catalogProducts]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
-        const [visibleRes, aggregatorRes] = await Promise.allSettled([
+        const [visibleRes, aggregatorRes, productsRes] = await Promise.allSettled([
           marketGetVisibleListings(),
           marketGetAggregatorFeed(),
+          marketGetProducts({ page: "1", per_page: "25" }),
         ]);
         
         const visibleData = visibleRes.status === "fulfilled"
-          ? (Array.isArray(visibleRes.value?.data) ? visibleRes.value.data : visibleRes.value || [])
+          ? (Array.isArray(visibleRes.value?.data) ? visibleRes.value.data : Array.isArray(visibleRes.value) ? visibleRes.value : [])
           : [];
         const aggregatorData = aggregatorRes.status === "fulfilled"
-          ? (Array.isArray(aggregatorRes.value?.data) ? aggregatorRes.value.data : aggregatorRes.value || [])
+          ? (Array.isArray(aggregatorRes.value?.data) ? aggregatorRes.value.data : Array.isArray(aggregatorRes.value) ? aggregatorRes.value : [])
+          : [];
+        const productsData = productsRes.status === "fulfilled"
+          ? (Array.isArray(productsRes.value?.data) ? productsRes.value.data : Array.isArray(productsRes.value) ? productsRes.value : [])
           : [];
         
         if (mounted) {
           setListings(visibleData.map(mapApiListingToCard));
           setAggregatorListings(aggregatorData.map(mapApiListingToCard));
+          setCatalogProducts(productsData.map(mapProductToCard));
           setError(null);
         }
       } catch (err) {
@@ -203,9 +234,10 @@ export default function HomeScreen() {
   }, [_t, token, refreshKey]);
 
   const products = useMemo(() => {
-    if (selectedCategory === "All") return listings;
-    return listings.filter((p) => p.category === selectedCategory);
-  }, [listings, selectedCategory]);
+    // Use catalog products from /marketplace/products endpoint
+    if (selectedCategory === "All") return catalogProducts;
+    return catalogProducts.filter((p) => p.category === selectedCategory);
+  }, [catalogProducts, selectedCategory]);
 
   return (
     <ParallaxScrollView>
@@ -220,6 +252,7 @@ export default function HomeScreen() {
         <CategoryChips
           active={selectedCategory}
           onSelect={setSelectedCategory}
+          categories={categories}
         />
 
         {selectedCategory === "All" && <TopPickCard />}
