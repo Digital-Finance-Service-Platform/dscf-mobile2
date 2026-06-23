@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useMemo, useRef, useState } from "react";
@@ -16,6 +17,8 @@ import MapView, { Marker, UrlTile, type MapPressEvent } from "react-native-maps"
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 
+type UploadAsset = DocumentPicker.DocumentPickerAsset;
+
 type Coordinate = {
   latitude: number;
   longitude: number;
@@ -28,33 +31,37 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.08,
 };
 
-export default function OnboardingRetailorScreen() {
+export default function OnboardingSupplierScreen() {
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  // Required fields
+  const [businessName, setBusinessName] = useState("");
+  const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "">("");
-  const [tin, setTin] = useState("");
   const [pin, setPin] = useState<Coordinate | null>(null);
-  const [hasLocationPermission, setHasLocationPermission] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
+  const [licenseFile, setLicenseFile] = useState<UploadAsset | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Optional fields
   const [email, setEmail] = useState("");
-  const [branchCount, setBranchCount] = useState("");
-  const [preferredCategories, setPreferredCategories] = useState("");
+  const [additionalDocs, setAdditionalDocs] = useState<UploadAsset[]>([]);
+
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
 
   const missingRequired = useMemo(() => {
     return (
-      !firstName.trim() ||
-      !lastName.trim() ||
+      !businessName.trim() ||
+      !contactName.trim() ||
       !phone.trim() ||
       !gender ||
-      !pin
+      !pin ||
+      !licenseFile ||
+      !termsAccepted
     );
-  }, [firstName, lastName, phone, gender, pin]);
+  }, [businessName, contactName, phone, gender, pin, licenseFile, termsAccepted]);
 
   const handleMapPress = (event: MapPressEvent) => {
     setPin(event.nativeEvent.coordinate);
@@ -92,29 +99,60 @@ export default function OnboardingRetailorScreen() {
     }
   };
 
+  const handlePickFile = async (
+    onPick: (asset: UploadAsset | null) => void,
+    options?: DocumentPicker.DocumentPickerOptions
+  ) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      ...options,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const asset = result.assets?.[0] ?? null;
+    onPick(asset);
+  };
+
+  const handlePickAdditionalDocs = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: true,
+      type: ["application/pdf", "image/*"],
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    setAdditionalDocs([...additionalDocs, ...(result.assets ?? [])]);
+  };
+
   const handleContinue = () => {
     router.push({
       pathname: "/onboarding/otp" as any,
       params: {
-        role: "retailer",
-        firstName,
-        lastName,
+        role: "supplier",
+        businessName,
+        contactName,
         phone,
         gender,
-        tin,
-        email,
         latitude: pin?.latitude,
         longitude: pin?.longitude,
-        branchCount,
-        preferredCategories,
+        email,
+        licenseFileName: licenseFile?.name,
+        additionalDocsCount: additionalDocs.length,
       },
     });
   };
 
   return (
     <PageShell
-      title="Retailer onboarding"
-      subtitle="Tell us about your store"
+      title="Supplier onboarding"
+      subtitle="Complete your KYC verification"
       showBackButton
       style={styles.shell}
       footer={
@@ -135,21 +173,21 @@ export default function OnboardingRetailorScreen() {
       >
         <SectionTitle title="Required" />
 
-        <FieldLabel label="First Name" required />
+        <FieldLabel label="Business Name" required />
         <TextInput
           style={styles.input}
-          value={firstName}
-          onChangeText={setFirstName}
-          placeholder="Enter your first name"
+          value={businessName}
+          onChangeText={setBusinessName}
+          placeholder="Enter business name"
           placeholderTextColor="#8a8a8a"
         />
 
-        <FieldLabel label="Last Name" required />
+        <FieldLabel label="Contact Person Name" required />
         <TextInput
           style={styles.input}
-          value={lastName}
-          onChangeText={setLastName}
-          placeholder="Enter your last name"
+          value={contactName}
+          onChangeText={setContactName}
+          placeholder="Enter contact person name"
           placeholderTextColor="#8a8a8a"
         />
 
@@ -215,9 +253,9 @@ export default function OnboardingRetailorScreen() {
           </Pressable>
         </View>
 
-        <FieldLabel label="Dropoff Location on Map" required />
+        <FieldLabel label="Shop Location on Map" required />
         <ThemedText type="default" style={styles.mapHint}>
-          Tap the map to place a pin at your store location
+          Tap the map to place a pin at your business location
         </ThemedText>
 
         <View style={styles.mapContainer}>
@@ -270,21 +308,39 @@ export default function OnboardingRetailorScreen() {
           <View style={styles.infoRow}>
             <MaterialIcons name="check-circle" size={18} color="#2e7d32" />
             <ThemedText type="default" style={styles.infoText}>
-              Location selected: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}
+              Location selected
             </ThemedText>
           </View>
         ) : null}
 
-        <SectionTitle title="Optional" />
-
-        <FieldLabel label="TIN Number" />
-        <TextInput
-          style={styles.input}
-          value={tin}
-          onChangeText={setTin}
-          placeholder="Enter TIN number"
-          placeholderTextColor="#8a8a8a"
+        <FieldLabel label="Business License Upload" required />
+        <UploadRow
+          label={licenseFile?.name ?? "Upload business license (PDF or Image)"}
+          onPress={() =>
+            handlePickFile(setLicenseFile, {
+              type: ["application/pdf", "image/*"],
+            })
+          }
+          filled={Boolean(licenseFile)}
         />
+
+        <Pressable
+          style={styles.termsRow}
+          onPress={() => setTermsAccepted((prev) => !prev)}
+        >
+          <View
+            style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}
+          >
+            {termsAccepted ? (
+              <MaterialIcons name="check" size={14} color="#fff" />
+            ) : null}
+          </View>
+          <ThemedText type="default" style={styles.termsText}>
+            I accept the terms and conditions
+          </ThemedText>
+        </Pressable>
+
+        <SectionTitle title="Optional" />
 
         <FieldLabel label="Email" />
         <TextInput
@@ -297,25 +353,28 @@ export default function OnboardingRetailorScreen() {
           keyboardType="email-address"
         />
 
-        <FieldLabel label="Number of Branches" />
-        <TextInput
-          style={styles.input}
-          value={branchCount}
-          onChangeText={setBranchCount}
-          placeholder="e.g., 3"
-          placeholderTextColor="#8a8a8a"
-          keyboardType="number-pad"
+        <FieldLabel label="Additional Documents" />
+        <UploadRow
+          label={
+            additionalDocs.length > 0
+              ? `${additionalDocs.length} document(s) uploaded`
+              : "Upload additional documents (optional)"
+          }
+          onPress={handlePickAdditionalDocs}
+          filled={additionalDocs.length > 0}
         />
-
-        <FieldLabel label="Preferred Product Categories" />
-        <TextInput
-          style={[styles.input, styles.textarea]}
-          value={preferredCategories}
-          onChangeText={setPreferredCategories}
-          placeholder="e.g., Groceries, Electronics, Household items"
-          placeholderTextColor="#8a8a8a"
-          multiline
-        />
+        {additionalDocs.length > 0 ? (
+          <View style={styles.docsList}>
+            {additionalDocs.map((doc, idx) => (
+              <View key={idx} style={styles.docItem}>
+                <MaterialIcons name="insert-drive-file" size={16} color="#6b6b6b" />
+                <ThemedText type="default" style={styles.docName}>
+                  {doc.name}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
     </PageShell>
   );
@@ -343,6 +402,32 @@ function FieldLabel({ label, required }: { label: string; required?: boolean }) 
         </ThemedText>
       ) : null}
     </View>
+  );
+}
+
+function UploadRow({
+  label,
+  onPress,
+  filled,
+}: {
+  label: string;
+  onPress: () => void;
+  filled?: boolean;
+}) {
+  return (
+    <Pressable style={styles.uploadRow} onPress={onPress}>
+      <View style={styles.uploadLeft}>
+        <MaterialIcons
+          name={filled ? "task-alt" : "upload-file"}
+          size={20}
+          color={filled ? "#2e7d32" : "#6b6b6b"}
+        />
+        <ThemedText type="default" style={styles.uploadText}>
+          {label}
+        </ThemedText>
+      </View>
+      <MaterialIcons name="chevron-right" size={22} color="#8a1d1d" />
+    </Pressable>
   );
 }
 
@@ -388,7 +473,6 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     paddingHorizontal: 0,
   },
-  textarea: { minHeight: 80, textAlignVertical: "top" },
   mapHint: {
     color: "#6b6b6b",
     fontSize: 13,
@@ -432,7 +516,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e8f5e9",
     borderRadius: 8,
   },
-  infoText: { marginLeft: 8, color: "#2e7d32", fontSize: 12, flex: 1 },
+  infoText: { marginLeft: 8, color: "#2e7d32", fontSize: 12 },
   genderRow: {
     flexDirection: "row",
     gap: 12,
@@ -461,6 +545,53 @@ const styles = StyleSheet.create({
   genderTextActive: {
     color: "#0a2f4a",
     fontWeight: "600",
+  },
+  uploadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "rgba(10, 47, 74, 0.2)",
+  },
+  uploadLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  uploadText: { marginLeft: 8, color: "#55656d", flex: 1 },
+  termsRow: {
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#0a2f4a",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  checkboxChecked: { backgroundColor: "#0a2f4a", borderColor: "#0a2f4a" },
+  termsText: { marginLeft: 8, color: "#333", flex: 1 },
+  docsList: {
+    marginTop: 8,
+    gap: 6,
+  },
+  docItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 6,
+  },
+  docName: {
+    marginLeft: 8,
+    color: "#6b6b6b",
+    fontSize: 13,
+    flex: 1,
   },
   continueButton: {
     marginTop: 20,

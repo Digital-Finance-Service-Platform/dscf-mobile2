@@ -33,8 +33,15 @@ const MARKET_URL =
   (Constants.expoConfig?.extra as any)?.marketUrl ??
   `${API_BASE.replace(/\/$/, "")}/marketplace`;
 
+// Core API base (non-auth core endpoints like businesses, fayda, etc.)
+const CORE_URL =
+  process.env.EXPO_PUBLIC_CORE_URL ??
+  process.env.NEXT_PUBLIC_CORE_URL ??
+  (Constants.expoConfig?.extra as any)?.coreUrl ??
+  `${API_BASE.replace(/\/$/, "")}/core`;
+
 try {
-  console.log("[clients] MARKET_URL:", MARKET_URL);
+  console.log("[clients] MARKET_URL:", MARKET_URL, "CORE_URL:", CORE_URL);
 } catch (e) {}
 
 export function getAuthUrl() {
@@ -53,6 +60,10 @@ function authEndpoint(path: string) {
 
 export function getMarketUrl() {
   return MARKET_URL;
+}
+
+export function getCoreUrl() {
+  return CORE_URL;
 }
 
 export async function setAccessToken(
@@ -295,13 +306,19 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
       },
     };
 
-    const requestBody = { user: userBody };
+    const requestBody: Record<string, any> = { user: userBody };
+
+    // Pass through agent/retailer blocks for atomic signup (per signup-agent-retailer.md)
+    if (payload.agent) requestBody.agent = payload.agent;
+    if (payload.retailer) requestBody.retailer = payload.retailer;
 
     // Don't log passwords
     console.log("[authSignup] POST", url, {
       email: requestBody.user.email,
       phone: requestBody.user.phone,
       first_name: requestBody.user.user_profile_attributes?.first_name,
+      has_agent: !!requestBody.agent,
+      has_retailer: !!requestBody.retailer,
     });
 
     const res = await fetch(url, {
@@ -334,6 +351,89 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
   }
 }
 
+export async function authRefresh(payload?: Record<string, any>): Promise<any> {
+  const storedRefreshToken = await getItemAsync("refresh_token");
+  const url = authEndpoint("/refresh");
+  try {
+    const requestBody = {
+      refresh_token: payload?.refresh_token ?? storedRefreshToken,
+    };
+    console.log("[authRefresh] POST", url);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(
+        json?.message || `Token refresh failed (status ${res.status})`,
+      );
+    }
+    const accessToken =
+      json?.data?.access_token ?? json?.access_token ?? null;
+    const newRefreshToken =
+      json?.data?.refresh_token ?? json?.refresh_token ?? null;
+    if (accessToken) {
+      await setAccessToken(accessToken, newRefreshToken ?? undefined);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error during token refresh at ${url} — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function coreFetch(
+  path: string,
+  options: RequestInit = {},
+): Promise<any> {
+  const token = await getAccessToken();
+  const headers = new Headers((options.headers as HeadersInit) || {});
+  // Don't set Content-Type for FormData — let the runtime set multipart boundary
+  if (!(options.body instanceof FormData)) {
+    if (!headers.get("Content-Type"))
+      headers.set("Content-Type", "application/json");
+  }
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const url = path.startsWith("http") ? path : `${CORE_URL}${path}`;
+  try {
+    const res = await fetch(url, { ...options, headers });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        json?.message ||
+        (json?.errors
+          ? Array.isArray(json.errors)
+            ? json.errors.join("; ")
+            : JSON.stringify(json.errors)
+          : `Request failed (status ${res.status})`);
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error: could not reach core server at ${CORE_URL} — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function faydaVerify(faydaNumber: string): Promise<any> {
+  return coreFetch("/fayda/verify", {
+    method: "POST",
+    body: JSON.stringify({ fayda_number: faydaNumber }),
+  });
+}
+
 export async function marketGetVisibleListings(
   /**
    * Fetch visible listings.
@@ -353,6 +453,272 @@ export async function marketGetVisibleListings(
     try {
       console.warn("[clients] marketGetVisibleListings error:", err?.message ?? err);
     } catch (e) {}
+    throw err;
+  }
+}
+
+// ─── Categories ──────────────────────────────────────────────────────────────
+
+export async function marketGetCategories(): Promise<any> {
+  return marketFetch("/categories", { method: "GET" });
+}
+
+export async function marketGetCategoryProducts(categoryId: number | string): Promise<any> {
+  return marketFetch(`/categories/${categoryId}/products`, { method: "GET" });
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
+
+export async function marketGetProducts(query?: Record<string, string>): Promise<any> {
+  const qs = query
+    ? "?" +
+      Object.entries(query)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  return marketFetch(`/products${qs}`, { method: "GET" });
+}
+
+export async function marketGetUnits(): Promise<any> {
+  return marketFetch("/units", { method: "GET" });
+}
+
+// ─── Aggregator Feed ─────────────────────────────────────────────────────────
+
+export async function marketGetAggregatorFeed(): Promise<any> {
+  return marketFetch("/aggregator_listings/feed", { method: "GET" });
+}
+
+// ─── Business Management ─────────────────────────────────────────────────────
+
+export async function coreGetMyBusiness(): Promise<any> {
+  return coreFetch("/businesses/my_business", { method: "GET" });
+}
+
+export async function coreGetBusiness(id: number | string): Promise<any> {
+  return coreFetch(`/businesses/${id}`, { method: "GET" });
+}
+
+export async function coreUpdateBusiness(
+  id: number | string,
+  payload: Record<string, any>,
+): Promise<any> {
+  return coreFetch(`/businesses/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Supplier Products & Listings ────────────────────────────────────────────
+
+export async function marketGetMyProducts(): Promise<any> {
+  return marketFetch("/supplier_products/my_products", { method: "GET" });
+}
+
+export async function marketGetProductById(id: number | string): Promise<any> {
+  return marketFetch(`/products/${id}`, { method: "GET" });
+}
+
+export async function marketCreateSupplierProduct(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/supplier_products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketUpdateSupplierProduct(
+  id: number | string,
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketApproveSupplierProduct(
+  id: number | string,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}/approve`, { method: "POST" });
+}
+
+export async function marketRejectSupplierProduct(
+  id: number | string,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}/reject`, { method: "POST" });
+}
+
+export async function marketDeleteSupplierProduct(
+  id: number | string,
+): Promise<any> {
+  return marketFetch(`/supplier_products/${id}`, { method: "DELETE" });
+}
+
+export async function marketGetMyListings(): Promise<any> {
+  return marketFetch("/listings/my_listings", { method: "GET" });
+}
+
+export async function marketCreateListing(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/listings", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketUpdateListing(
+  id: number | string,
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch(`/listings/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketPauseListing(id: number | string): Promise<any> {
+  return marketFetch(`/listings/${id}/pause`, { method: "POST" });
+}
+
+export async function marketActivateListing(id: number | string): Promise<any> {
+  return marketFetch(`/listings/${id}/activate`, { method: "POST" });
+}
+
+// ─── Product Inclusion Requests ──────────────────────────────────────────────
+
+export async function marketCreateProductInclusionRequest(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/product_inclusion_requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function marketGetProductInclusionRequests(): Promise<any> {
+  return marketFetch("/product_inclusion_requests", { method: "GET" });
+}
+
+// ─── Agent's Retailers ───────────────────────────────────────────────────────
+
+export async function marketGetMyRetailers(agentId?: number | string): Promise<any> {
+  const qs = agentId ? `?agent_id=${agentId}` : "";
+  return marketFetch(`/retailers/my_retailers${qs}`, { method: "GET" });
+}
+
+// ─── Registration Endpoints ──────────────────────────────────────────────────
+
+export async function marketRegisterSupplier(
+  formData: FormData,
+): Promise<any> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Don't set Content-Type — let fetch set multipart boundary
+  const url = `${MARKET_URL}/suppliers/register`;
+  try {
+    console.log("[marketRegisterSupplier] POST", url);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        json?.message ||
+        (json?.errors
+          ? Array.isArray(json.errors)
+            ? json.errors.join("; ")
+            : JSON.stringify(json.errors)
+          : `Supplier registration failed (status ${res.status})`);
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error during supplier registration — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function marketRegisterAgent(
+  payload: Record<string, any>,
+): Promise<any> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const url = `${MARKET_URL}/agents/register`;
+  try {
+    console.log("[marketRegisterAgent] POST", url, payload);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ agent: payload }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        json?.message ||
+        (json?.errors
+          ? Array.isArray(json.errors)
+            ? json.errors.join("; ")
+            : JSON.stringify(json.errors)
+          : `Agent registration failed (status ${res.status})`);
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error during agent registration — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function marketRegisterRetailer(
+  payload: Record<string, any>,
+): Promise<any> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const url = `${MARKET_URL}/retailers/register`;
+  try {
+    console.log("[marketRegisterRetailer] POST", url, payload);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ retailer: payload }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        json?.message ||
+        (json?.errors
+          ? Array.isArray(json.errors)
+            ? json.errors.join("; ")
+            : JSON.stringify(json.errors)
+          : `Retailer registration failed (status ${res.status})`);
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error during retailer registration — ${message}`,
+      );
+    }
     throw err;
   }
 }

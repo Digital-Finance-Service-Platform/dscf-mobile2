@@ -16,10 +16,13 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import LogoutConfirmModal from "@/components/ui/logout-confirm-modal";
 import MenuModal from "@/components/ui/menu-modal";
 import { useSdk } from "@/lib/sdk/context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.tabBarContainer}>
+    <View style={[styles.tabBarContainer, { paddingBottom: insets.bottom }]}>
       <View style={styles.tabBarBackground}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
@@ -84,7 +87,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 function AppHeader() {
   const segments = useSegments();
   const { count } = useCart();
-  const { token, logout, refreshToken } = useSdk();
+  const { token, logout, refreshToken, user } = useSdk();
   const router = useRouter();
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -98,6 +101,10 @@ function AppHeader() {
 
   const bg = "#FAF9F8";
   const iconColor = "#800000";
+
+  const userName = user?.user_profile
+    ? `${user.user_profile.first_name ?? ""} ${user.user_profile.last_name ?? ""}`.trim()
+    : user?.phone ?? user?.email ?? "User";
 
   return (
     <View style={[layoutStyles.header, { backgroundColor: bg }]}>
@@ -133,7 +140,7 @@ function AppHeader() {
               const currentPath =
                 segments && segments.length ? "/" + segments.join("/") : "/";
               // append timestamp to force navigation/rerender
-              router.replace(`${currentPath}?_t=${Date.now()}`);
+              router.replace(`${currentPath}?_t=${Date.now()}` as any);
             } catch (e) {
               try {
                 console.log("AppHeader: router replace failed", e);
@@ -199,49 +206,21 @@ function AppHeader() {
               icon: "person",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/profile");
+                router.push("/profile" as any);
               },
             },
             {
-              label: "Favorites",
-              icon: "favorite",
+              label: "Categories",
+              icon: "apps",
               onPress: () => {
                 setShowMenuModal(false);
-                router.push("/favorites");
-              },
-            },
-            {
-              label: "Contact Us",
-              icon: "phone",
-              onPress: () => {
-                setShowMenuModal(false);
-                router.push("/contact");
-              },
-            },
-            {
-              label: "Chatbot",
-              icon: "chat",
-              onPress: () => {
-                setShowMenuModal(false);
-                router.push("/chatbot");
-              },
-            },
-            {
-              label: "Settings",
-              icon: "settings",
-              onPress: () => {
-                setShowMenuModal(false);
-                router.push("/settings");
+                router.push("/categories");
               },
             },
             {
               label: "Log out",
               icon: "logout",
               onPress: () => {
-                // debug: trace menu logout press
-                try {
-                  console.log("AppHeader: Menu 'Log out' pressed");
-                } catch (e) {}
                 setShowMenuModal(false);
                 setShowLogoutModal(true);
               },
@@ -329,7 +308,9 @@ const styles = StyleSheet.create({
     left: 2,
     right: 2,
     bottom: 0,
-    backgroundColor: "transparent",
+    backgroundColor: "#000000",
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
   },
   tabBarBackground: {
     flexDirection: "row",

@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 
-type RoleKey = "agent" | "retailor" | "customer";
+type RoleKey = "retailer" | "supplier" | "agent";
 
 type RoleCard = {
   key: RoleKey;
@@ -17,22 +17,22 @@ type RoleCard = {
 
 const ROLE_CARDS: RoleCard[] = [
   {
-    key: "agent",
-    title: "Agent",
-    description: "Order for customers or retailors.",
-    icon: "support-agent",
-  },
-  {
-    key: "retailor",
-    title: "Retailor",
-    description: "Sell products and set your dropoff location.",
+    key: "retailer",
+    title: "Retailer",
+    description: "Browse products, request quotations, and place orders.",
     icon: "storefront",
   },
   {
-    key: "customer",
-    title: "Customer",
-    description: "Shop and choose a dropoff location.",
-    icon: "person",
+    key: "supplier",
+    title: "Supplier",
+    description: "List products and fulfill orders from retailers.",
+    icon: "inventory-2",
+  },
+  {
+    key: "agent",
+    title: "Agent",
+    description: "Assist retailers with orders and track commissions.",
+    icon: "support-agent",
   },
 ];
 
@@ -40,20 +40,20 @@ export default function OnboardingRoleScreen() {
   const router = useRouter();
 
   const handleSelect = (role: RoleKey) => {
-    if (role === "agent") {
-      router.push("/onboarding/agent");
-      return;
-    }
-
-    if (role === "retailor") {
+    if (role === "retailer") {
       router.push("/onboarding/retailor");
       return;
     }
 
-    router.push({
-      pathname: "/onboarding/dropoff",
-      params: { role },
-    });
+    if (role === "supplier") {
+      router.push("/onboarding/supplier" as any);
+      return;
+    }
+
+    if (role === "agent") {
+      router.push("/onboarding/agent");
+      return;
+    }
   };
 
   return (

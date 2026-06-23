@@ -62,15 +62,19 @@ function AuthStack() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/role" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/retailor" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/supplier" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding/agent" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="onboarding/retailor"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="onboarding/dropoff"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="onboarding/otp" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/password" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/pending-approval" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding/dropoff" options={{ headerShown: false }} />
+      <Stack.Screen name="profile/index" options={{ headerShown: false }} />
+      <Stack.Screen name="profile/business" options={{ headerShown: false }} />
+      <Stack.Screen name="supplier/products" options={{ headerShown: false }} />
+      <Stack.Screen name="supplier/listings" options={{ headerShown: false }} />
+      <Stack.Screen name="supplier/request-product" options={{ headerShown: false }} />
+      <Stack.Screen name="agent/retailers" options={{ headerShown: false }} />
     </Stack>
   );
 }
