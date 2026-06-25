@@ -42,36 +42,49 @@ export default function LoginScreen() {
       // Check review_status from login response (per mobile-integration-agent-retailer.md)
       const reviewStatus = loginResult?.data?.user?.review_status;
 
-      // Detect user role from response
-      const roles = loginResult?.data?.user?.roles ?? [];
-      const permissions = loginResult?.data?.user?.permissions ?? [];
-      
-      const isSupplier = reviewStatus?.type === "supplier" || 
-        roles.some((r: any) => r?.code?.toUpperCase() === "SUPPLIER" || r?.name?.toUpperCase() === "SUPPLIER") ||
-        permissions.some((p: string) => p.includes("businesses."));
-      
-      const isRetailer = roles.some((r: any) => 
-        r?.code?.toUpperCase() === "RETAILER" || r?.name?.toUpperCase() === "RETAILER"
-      );
+      // Detect user role from the roles array (most reliable source)
+      const roles: any[] = loginResult?.data?.user?.roles ?? [];
 
-      // Suppliers go to supplier dashboard
-      if (isSupplier && !isRetailer) {
-        if (reviewStatus && (reviewStatus.status === "pending" || reviewStatus.status === "under_review")) {
-          router.replace({
-            pathname: "/onboarding/pending-approval" as any,
-            params: { role: "supplier", status: reviewStatus.status },
-          });
-        } else {
-          router.replace("/supplier/dashboard" as any);
-        }
+      // Determine primary role from roles array
+      const roleCodes = roles.map((r: any) => r?.code?.toUpperCase() ?? "");
+      const isAgent = roleCodes.includes("AGENT");
+      const isSupplier = roleCodes.includes("SUPPLIER");
+      const isRetailer = roleCodes.includes("RETAILER");
+
+      // ── SUPPLIER ──────────────────────────────────────────────
+      // Supplier review_status is null, so no pending check needed
+      if (isSupplier && !isRetailer && !isAgent) {
+        router.replace("/supplier/dashboard" as any);
         return;
       }
 
-      // Retailers go directly to home regardless of review status
-      if (reviewStatus && !isRetailer) {
+      // ── AGENT ─────────────────────────────────────────────────
+      // Agent may have review_status with pending/under_review
+      if (isAgent && !isRetailer && !isSupplier) {
+        if (reviewStatus && (reviewStatus.status === "pending" || reviewStatus.status === "under_review")) {
+          router.replace({
+            pathname: "/onboarding/pending-approval" as any,
+            params: { role: "agent", status: reviewStatus.status },
+          });
+          return;
+        }
+        // Agent approved/verified → go to agent dashboard
+        router.replace("/agent/retailers" as any);
+        return;
+      }
+
+      // ── RETAILER ──────────────────────────────────────────────
+      // Retailers go directly to home/marketplace regardless of review_status
+      if (isRetailer) {
+        router.replace("/(tabs)");
+        return;
+      }
+
+      // ── FALLBACK ──────────────────────────────────────────────
+      // If no role matches, check review_status as fallback
+      if (reviewStatus) {
         const status = reviewStatus.status;
         if (status === "pending" || status === "under_review") {
-          // User's marketplace account is pending review (agent only)
           const reviewType = reviewStatus.type || "user";
           router.replace({
             pathname: "/onboarding/pending-approval" as any,
@@ -79,7 +92,6 @@ export default function LoginScreen() {
           });
           return;
         }
-        // For rejected/modify/verified/approved — proceed to home
       }
 
       router.replace("/(tabs)");
