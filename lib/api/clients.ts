@@ -523,6 +523,30 @@ export async function coreUpdateBusiness(
   });
 }
 
+export async function coreGetAddresses(): Promise<any> {
+  return coreFetch("/addresses", { method: "GET" });
+}
+
+export async function coreCreateAddress(
+  payload: Record<string, any>,
+): Promise<any> {
+  return coreFetch("/addresses", {
+    method: "POST",
+    body: JSON.stringify({ address: payload }),
+  });
+}
+
+export async function coreUpdateAddress(
+  id: number | string,
+  payload: Record<string, any>,
+): Promise<any> {
+  return coreFetch(`/addresses/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ address: payload }),
+  });
+}
+
+
 // ─── Supplier Products & Listings ────────────────────────────────────────────
 
 export async function marketGetMyProducts(): Promise<any> {
