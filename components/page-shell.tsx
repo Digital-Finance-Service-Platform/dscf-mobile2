@@ -62,6 +62,8 @@ export function PageShell({
                 <ThemedText
                   type="defaultSemiBold"
                   style={styles.headerTitleCenter}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                 >
                   {title}
                 </ThemedText>
@@ -79,7 +81,12 @@ export function PageShell({
           ) : (
             <View style={styles.headerTextWrap}>
               {title ? (
-                <ThemedText type="defaultSemiBold" style={styles.headerTitle}>
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={styles.headerTitle}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
                   {title}
                 </ThemedText>
               ) : null}
@@ -126,14 +133,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
+    borderColor: "#EAECF0",
+    shadowColor: "#000",
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
   spacer: { width: 36, height: 36 },
   headerTextWrap: { flex: 1, marginHorizontal: 12 },
@@ -150,7 +161,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitleCenter: {
-    fontSize: 22,
+    fontSize: 20,
+    fontWeight: "700",
     color: "#1A1C1C",
     textAlign: "center",
     marginLeft: 0,

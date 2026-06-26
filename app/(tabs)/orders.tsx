@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -16,6 +16,7 @@ import { useCart } from "@/components/cart-context";
 import { useRouter } from "expo-router";
 import { ORDERS } from "@/data/orders";
 import { formatCurrency } from "@/lib/formatters";
+import { marketGetMyOrders } from "@/lib/api/clients";
 
 export const options = { headerShown: false };
 
@@ -27,6 +28,33 @@ export default function OrdersScreen() {
   const insets = useSafeAreaInsets();
 
   const [filter, setFilter] = useState<OrderFilter>("ALL");
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch orders from backend on mount
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        setLoading(true);
+        console.log("[OrdersScreen] fetching my orders");
+        const response = await marketGetMyOrders();
+        if (response?.success && Array.isArray(response?.data)) {
+          setOrders(response.data);
+          console.log("[OrdersScreen] orders fetched", response.data.length);
+        } else {
+          throw new Error(response?.message || "Failed to fetch orders");
+        }
+      } catch (err: any) {
+        console.warn("[OrdersScreen] fetch error", err?.message || err);
+        // Fallback to demo data for development
+        setOrders(ORDERS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, []);
 
   const FILTERS = [
     { key: "ALL", label: "All Orders" },
@@ -36,9 +64,9 @@ export default function OrdersScreen() {
   ];
 
   const filteredOrders = useMemo(() => {
-    if (filter === "ALL") return ORDERS;
-    return ORDERS.filter((order) => order.status === filter);
-  }, [filter]);
+    if (filter === "ALL") return orders;
+    return orders.filter((order) => order.status === filter);
+  }, [filter, orders]);
 
   const onDetails = (order: any) => {
     router.push(`/orders/${order.id}`);
@@ -49,17 +77,53 @@ export default function OrdersScreen() {
   };
 
   const onReorder = (order: any) => {
-    order.items.forEach((item: any) => {
+    let added = 0;
+    let skipped = 0;
+    let adjusted = 0;
+
+    const items = order.items || order.order_items || [];
+    items.forEach((item: any) => {
+      // simulate availability check (80% available)
+      const available = Math.random() < 0.8;
+      if (!available) {
+        skipped += 1;
+        return;
+      }
+
+      // simulate price adjustment within +/-10%
+      const price = item.price || item.unit_price || 0;
+      const change = (Math.random() * 0.2 - 0.1);
+      const newPrice = Math.round((price * (1 + change)) * 100) / 100;
+
       addItem({
         id: item.id,
-        title: item.title,
-        price: item.price,
-        subtitle: item.category,
-        image: item.image,
+        title: item.title || item.product_name,
+        price: newPrice,
+        subtitle: item.category || "",
+        image: item.image || item.images_urls?.[0],
+        raw: item,
+        product_id: item.product_id,
+        unit_id: item.unit_id,
+        listing_id: item.listing_id,
+        ordered_to_id: item.ordered_to_id,
       });
+
+      if (newPrice !== price) adjusted += 1;
+      added += 1;
     });
+
     // navigate to cart so the user can review their reordered items
     router.push("/cart");
+
+    setTimeout(() => {
+      const parts = [];
+      if (added) parts.push(`${added} item${added > 1 ? "s" : ""} added`);
+      if (skipped) parts.push(`${skipped} item${skipped > 1 ? "s" : ""} unavailable`);
+      if (adjusted) parts.push(`${adjusted} price change${adjusted > 1 ? "s" : ""}`);
+      if (parts.length > 0) {
+        alert(`Reorder summary: ${parts.join(", ")}`);
+      }
+    }, 350);
   };
 
   const handleFilterChange = (key: string) => {
@@ -93,115 +157,130 @@ export default function OrdersScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <View style={styles.orderCard}>
-            <View style={styles.orderHeader}>
-              <View>
-                <ThemedText type="defaultSemiBold" style={styles.orderTitle}>
-                  Order #{item.id}
-                </ThemedText>
-                <ThemedText
-                  type="default"
-                  lightColor="#6b6b6b"
-                  style={{ marginTop: 6 }}
-                >
-                  {item.date} • {item.items.length} Item
-                  {item.items.length > 1 ? "s" : ""}
-                </ThemedText>
-              </View>
-
-              <StatusBadge status={item.status} />
-            </View>
-
-            <View style={styles.productsPill}>
-              <View style={styles.thumbRow}>
-                {item.items.slice(0, 3).map((it, i) => (
-                  <RNImage
-                    key={it.id}
-                    source={it.image}
-                    style={[
-                      styles.thumbSmall,
-                      { marginLeft: i === 0 ? 0 : -10 },
-                    ]}
-                  />
-                ))}
-                {item.items.length > 3 && (
-                  <View
-                    style={[
-                      styles.thumbSmall,
-                      styles.moreThumb,
-                      { marginLeft: -10 },
-                    ]}
-                  >
-                    <ThemedText type="defaultSemiBold">
-                      +{item.items.length - 3}
-                    </ThemedText>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.productLabel}>
-                <ThemedText
-                  type="default"
-                  numberOfLines={1}
-                  style={{ color: "#333" }}
-                >
-                  {item.items.map((it) => it.title).join(", ")}
-                </ThemedText>
-              </View>
-            </View>
-
-            <View style={styles.orderFooter}>
-              <View>
-                <ThemedText type="default" lightColor="#6b6b6b">
-                  Total Amount
-                </ThemedText>
-                <ThemedText
-                  type="title"
-                  style={{ marginTop: 6, fontSize: 18, color: "#800000" }}
-                >
-                  {formatCurrency(item.total)}
-                </ThemedText>
-              </View>
-
-              <View style={styles.buttonsRow}>
-                <TouchableOpacity
-                  style={styles.detailsBtn}
-                  onPress={() => onDetails(item)}
-                >
-                  <ThemedText type="default">Details</ThemedText>
-                </TouchableOpacity>
-
-                {item.status === "PROCESSING" ? (
-                  <TouchableOpacity
-                    style={[styles.detailsBtn, { marginLeft: 8 }]}
-                    onPress={() => onTrack(item)}
-                  >
-                    <ThemedText type="default">Track</ThemedText>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.reorderBtn, { marginLeft: 8 }]}
-                    onPress={() => onReorder(item)}
-                  >
-                    <MaterialIcons
-                      name="replay"
-                      size={16}
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                    <ThemedText
-                      type="defaultSemiBold"
-                      style={{ color: "#fff" }}
-                    >
-                      Reorder
-                    </ThemedText>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
+        ListEmptyComponent={
+          <View style={{ alignItems: "center", marginTop: 40 }}>
+            <MaterialIcons name="inbox" size={48} color="#ccc" />
+            <ThemedText type="default" lightColor="#999" style={{ marginTop: 12 }}>
+              {loading ? "Loading orders..." : "No orders yet"}
+            </ThemedText>
           </View>
-        )}
+        }
+        renderItem={({ item }) => {
+          const itemsList = item.items || item.order_items || [];
+          const orderDate = new Date(item.created_at || item.date).toLocaleDateString();
+          return (
+            <View style={styles.orderCard}>
+              <View style={styles.orderHeader}>
+                <View>
+                  <ThemedText type="defaultSemiBold" style={styles.orderTitle}>
+                    Order #{item.id}
+                  </ThemedText>
+                  <ThemedText
+                    type="default"
+                    lightColor="#6b6b6b"
+                    style={{ marginTop: 6 }}
+                  >
+                    {orderDate} • {itemsList.length} Item
+                    {itemsList.length > 1 ? "s" : ""}
+                  </ThemedText>
+                </View>
+
+                <StatusBadge status={item.status} />
+              </View>
+
+              <View style={styles.productsPill}>
+                <View style={styles.thumbRow}>
+                  {itemsList.slice(0, 3).map((it: any, i: number) => {
+                    const imageUri = it.image || it.images_urls?.[0];
+                    return (
+                      <RNImage
+                        key={it.id}
+                        source={imageUri}
+                        style={[
+                          styles.thumbSmall,
+                          { marginLeft: i === 0 ? 0 : -10 },
+                        ]}
+                      />
+                    );
+                  })}
+                  {itemsList.length > 3 && (
+                    <View
+                      style={[
+                        styles.thumbSmall,
+                        styles.moreThumb,
+                        { marginLeft: -10 },
+                      ]}
+                    >
+                      <ThemedText type="defaultSemiBold">
+                        +{itemsList.length - 3}
+                      </ThemedText>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.productLabel}>
+                  <ThemedText
+                    type="default"
+                    numberOfLines={1}
+                    style={{ color: "#333" }}
+                  >
+                    {itemsList.map((it: any) => it.title || it.product_name).join(", ")}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <View style={styles.orderFooter}>
+                <View>
+                  <ThemedText type="default" lightColor="#6b6b6b">
+                    Total Amount
+                  </ThemedText>
+                  <ThemedText
+                    type="title"
+                    style={{ marginTop: 6, fontSize: 18, color: "#800000" }}
+                  >
+                    {formatCurrency(item.total_amount || item.total)}
+                  </ThemedText>
+                </View>
+
+                <View style={styles.buttonsRow}>
+                  <TouchableOpacity
+                    style={styles.detailsBtn}
+                    onPress={() => onDetails(item)}
+                  >
+                    <ThemedText type="default">Details</ThemedText>
+                  </TouchableOpacity>
+
+                  {item.status === "PROCESSING" ? (
+                    <TouchableOpacity
+                      style={[styles.detailsBtn, { marginLeft: 8 }]}
+                      onPress={() => onTrack(item)}
+                    >
+                      <ThemedText type="default">Track</ThemedText>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.reorderBtn, { marginLeft: 8 }]}
+                      onPress={() => onReorder(item)}
+                    >
+                      <MaterialIcons
+                        name="replay"
+                        size={16}
+                        color="#fff"
+                        style={{ marginRight: 8 }}
+                      />
+                      <ThemedText
+                        type="defaultSemiBold"
+                        style={{ color: "#fff" }}
+                      >
+                        Reorder
+                      </ThemedText>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        }}
       />
     </PageShell>
   );

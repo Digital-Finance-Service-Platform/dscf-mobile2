@@ -126,7 +126,7 @@ export default function PendingApprovalScreen() {
     return (
       <Pressable
         style={styles.backButton}
-        onPress={() => router.replace("/welcome")}
+        onPress={() => router.replace("/login")}
       >
         <ThemedText type="default" style={styles.backText}>
           Back to Home

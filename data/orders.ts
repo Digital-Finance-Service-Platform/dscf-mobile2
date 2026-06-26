@@ -48,3 +48,9 @@ export const ORDERS = [
     total: 45.5,
   },
 ];
+
+// Add an order to the in-memory orders list (used by demo/demo data).
+// This is intentionally simple: it prepends the order so newest appear first.
+export function addOrder(order: any) {
+  ORDERS.unshift(order);
+}

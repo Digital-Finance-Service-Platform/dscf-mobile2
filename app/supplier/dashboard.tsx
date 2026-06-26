@@ -117,8 +117,8 @@ export default function SupplierDashboardScreen() {
   };
 
   const renderStatCard = (label: string, value: number, icon: string, color: string) => (
-    <View style={[styles.statCard, { borderLeftColor: color }]}>
-      <MaterialIcons name={icon as any} size={24} color={color} />
+    <View key={label} style={[styles.statCard, { borderLeftColor: color }]}>
+      <MaterialIcons name={icon as any} size={28} color={color} style={styles.statIcon} />
       <ThemedText type="defaultSemiBold" style={[styles.statValue, { color }]}>
         {value}
       </ThemedText>
@@ -264,8 +264,11 @@ export default function SupplierDashboardScreen() {
       showBackButton
       style={styles.shell}
       rightNode={
-        <Pressable onPress={() => router.push("/supplier/create-product" as any)}>
-          <MaterialIcons name="add-circle" size={24} color="#0a2f4a" />
+        <Pressable 
+          onPress={() => router.push("/supplier/create-product" as any)}
+          style={styles.headerAddBtn}
+        >
+          <MaterialIcons name="add" size={20} color="#fff" />
         </Pressable>
       }
     >
@@ -277,7 +280,7 @@ export default function SupplierDashboardScreen() {
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
             <ThemedText type="defaultSemiBold" style={styles.welcomeTitle}>
-              Welcome back, {userName}
+              Welcome back,{"\n"}{userName}
             </ThemedText>
             <ThemedText type="default" style={styles.welcomeSubtitle}>
               Manage your products and inventory
@@ -286,7 +289,7 @@ export default function SupplierDashboardScreen() {
 
           {/* Stats Cards */}
           <View style={styles.statsRow}>
-            {renderStatCard("Total", stats.total, "inventory", "#0a2f4a")}
+            {renderStatCard("Total", stats.total, "inventory", "#00274d")}
             {renderStatCard("Active", stats.active, "check-circle", "#2e7d32")}
             {renderStatCard("Pending", stats.pending, "hourglass-empty", "#1976d2")}
           </View>
@@ -297,9 +300,9 @@ export default function SupplierDashboardScreen() {
               style={styles.quickActionButton}
               onPress={() => router.push("/supplier/products" as any)}
             >
-              <MaterialIcons name="list-alt" size={20} color="#0a2f4a" />
+              <MaterialIcons name="list-alt" size={20} color="#00274d" />
               <ThemedText type="defaultSemiBold" style={styles.quickActionText}>
-                View All Products
+                Products
               </ThemedText>
             </Pressable>
 
@@ -307,9 +310,19 @@ export default function SupplierDashboardScreen() {
               style={styles.quickActionButton}
               onPress={() => router.push("/supplier/listings" as any)}
             >
-              <MaterialIcons name="storefront" size={20} color="#0a2f4a" />
+              <MaterialIcons name="storefront" size={20} color="#00274d" />
               <ThemedText type="defaultSemiBold" style={styles.quickActionText}>
-                My Listings
+                Listings
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={styles.quickActionButton}
+              onPress={() => router.push("/supplier/orders" as any)}
+            >
+              <MaterialIcons name="shopping-bag" size={20} color="#00274d" />
+              <ThemedText type="defaultSemiBold" style={styles.quickActionText}>
+                Orders
               </ThemedText>
             </Pressable>
           </View>
@@ -339,7 +352,7 @@ export default function SupplierDashboardScreen() {
             </View>
           ) : products.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="inventory" size={48} color="#6b6b6b" />
+              <MaterialIcons name="archive" size={64} color="#6b6b6b" style={styles.emptyIcon} />
               <ThemedText type="default" style={styles.emptyText}>
                 No products yet. Request a product to get started.
               </ThemedText>
@@ -366,56 +379,67 @@ export default function SupplierDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  shell: { paddingTop: 60 },
-  content: { padding: 16, paddingBottom: 40 },
+  shell: { paddingTop: 40, backgroundColor: "#fff" },
+  content: { padding: 16, paddingBottom: 20 },
+  headerAddBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#00274d",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 60,
+    paddingVertical: 40,
   },
   welcomeSection: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   welcomeTitle: {
-    fontSize: 24,
-    color: "#0a2f4a",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#00274d",
   },
   welcomeSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6b6b6b",
     marginTop: 4,
   },
   statsRow: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   statCard: {
     flex: 1,
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: "center",
-    borderLeftWidth: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    borderLeftWidth: 4,
+  },
+  statIcon: {
+    marginBottom: 4,
   },
   statValue: {
-    fontSize: 24,
-    marginTop: 8,
+    fontSize: 20,
+    fontWeight: "700",
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#6b6b6b",
-    marginTop: 4,
+    marginTop: 2,
   },
   quickActions: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   quickActionButton: {
     flex: 1,
@@ -423,31 +447,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: 12,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
+    gap: 4,
   },
   quickActionText: {
-    color: "#0a2f4a",
-    fontSize: 14,
+    color: "#00274d",
+    fontSize: 12,
+    fontWeight: "600",
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sectionTitle: {
-    fontSize: 18,
-    color: "#0a2f4a",
+    fontSize: 16,
+    color: "#00274d",
+    fontWeight: "700",
   },
   seeAllText: {
-    color: "#0a7ea4",
-    fontSize: 14,
+    color: "#1976d2",
+    fontSize: 13,
   },
   productsList: {
     gap: 12,
@@ -455,18 +479,16 @@ const styles = StyleSheet.create({
   productCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#EAECF0",
   },
   productHeader: {
     flexDirection: "row",
   },
   productImage: {
-    width: 70,
-    height: 70,
+    width: 60,
+    height: 60,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#f5f5f5",
@@ -477,61 +499,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   productInfo: { flex: 1, marginLeft: 12 },
-  productName: { color: "#0a2f4a", fontSize: 15 },
-  productSku: { color: "#6b6b6b", fontSize: 12, marginTop: 2 },
+  productName: { color: "#0a2f4a", fontSize: 14, fontWeight: "600" },
+  productSku: { color: "#6b6b6b", fontSize: 11, marginTop: 2 },
   priceRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 6,
+    marginTop: 4,
   },
-  price: { color: "#0a2f4a", fontWeight: "600", fontSize: 14 },
+  price: { color: "#0a2f4a", fontWeight: "700", fontSize: 14 },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  statusText: { fontSize: 11, textTransform: "capitalize" },
+  statusText: { fontSize: 10, textTransform: "capitalize", fontWeight: "600" },
   detailsRow: {
     flexDirection: "row",
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(10, 47, 74, 0.08)",
+    borderTopColor: "rgba(10, 47, 74, 0.06)",
   },
   detailItem: { flex: 1, alignItems: "center" },
-  detailLabel: { color: "#6b6b6b", fontSize: 11 },
-  detailValue: { color: "#0a2f4a", fontSize: 14, marginTop: 2 },
+  detailLabel: { color: "#6b6b6b", fontSize: 10 },
+  detailValue: { color: "#0a2f4a", fontSize: 13, marginTop: 2, fontWeight: "600" },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
-    gap: 12,
+    marginTop: 10,
+    gap: 8,
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#0a2f4a",
   },
-  actionText: { color: "#0a2f4a", marginLeft: 4, fontSize: 13 },
+  actionText: { color: "#0a2f4a", marginLeft: 4, fontSize: 12, fontWeight: "600" },
   deleteButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#b00020",
   },
-  deleteText: { color: "#b00020", marginLeft: 4, fontSize: 13 },
+  deleteText: { color: "#b00020", marginLeft: 4, fontSize: 12, fontWeight: "600" },
   buttonDisabled: { opacity: 0.6 },
   errorContainer: {
     alignItems: "center",
@@ -550,15 +572,24 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 60,
+    paddingVertical: 40,
   },
-  emptyText: { color: "#6b6b6b", textAlign: "center", marginTop: 12 },
+  emptyIcon: {
+    marginBottom: 16,
+  },
+  emptyText: {
+    color: "#6b6b6b",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+    paddingHorizontal: 20,
+  },
   addProductButton: {
-    marginTop: 16,
-    backgroundColor: "#0a2f4a",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+    backgroundColor: "#00274d",
+    paddingVertical: 14,
+    borderRadius: 8,
+    width: "100%",
+    alignItems: "center",
   },
-  addProductText: { color: "#fff" },
+  addProductText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });

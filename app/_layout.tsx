@@ -47,10 +47,19 @@ export default function RootLayout() {
 
 function AuthStack() {
   const { token, initialized } = useSdk();
+  const [hasSeenWelcome, setHasSeenWelcome] = React.useState<boolean | null>(null);
 
-  // Wait for token load from secure storage
-  if (!initialized) return null;
-  const initialRoute = token ? "(tabs)" : "welcome";
+  React.useEffect(() => {
+    import("@/lib/secureStore").then(({ getItemAsync }) => {
+      getItemAsync("has_seen_welcome").then((val) => {
+        setHasSeenWelcome(val === "true");
+      });
+    });
+  }, []);
+
+  // Wait for token load from secure storage and welcome flag
+  if (!initialized || hasSeenWelcome === null) return null;
+  const initialRoute = token ? "(tabs)" : (hasSeenWelcome ? "login" : "welcome");
 
   return (
     <Stack

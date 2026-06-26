@@ -140,6 +140,7 @@ export async function authLogin(payload: Record<string, any>): Promise<any> {
       json?.data?.refresh_token ?? json?.refresh_token ?? null;
     if (accessToken) {
       await setAccessToken(accessToken, refreshToken ?? undefined);
+      await setItemAsync("has_seen_welcome", "true");
     }
     return json;
   } catch (err: any) {
@@ -194,7 +195,20 @@ export async function marketFetch(
     const res = await fetch(url, { ...options, headers });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const msg = json?.message || `Request failed (status ${res.status})`;
+      // Provide detailed debug info for non-OK responses (helpful for 401)
+      try {
+        console.warn(
+          `[clients] marketFetch error ${res.status} -> ${url}`,
+          {
+            status: res.status,
+            statusText: res.statusText,
+            url,
+            tokenPresent: !!token,
+            responseBody: json,
+          },
+        );
+      } catch (e) {}
+      const msg = json?.message || json?.error || `Request failed (status ${res.status})`;
       throw new Error(msg);
     }
     return json;
@@ -485,8 +499,8 @@ export async function marketGetUnits(): Promise<any> {
 
 // ─── Aggregator Feed ─────────────────────────────────────────────────────────
 
-export async function marketGetAggregatorFeed(): Promise<any> {
-  return marketFetch("/aggregator_listings/feed", { method: "GET" });
+export async function marketGetAggregatorListings(): Promise<any> {
+  return marketFetch("/aggregator_listings", { method: "GET" });
 }
 
 // ─── Business Management ─────────────────────────────────────────────────────
@@ -721,4 +735,101 @@ export async function marketRegisterRetailer(
     }
     throw err;
   }
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+
+/**
+ * Create a new order on the marketplace.
+ * POST /marketplace/orders
+ */
+export async function marketCreateOrder(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/orders", {
+    method: "POST",
+    body: JSON.stringify({ order: payload }),
+  });
+}
+
+/**
+ * Fetch current user's orders (ordered_by == current_user).
+ * GET /marketplace/orders/my_orders
+ */
+export async function marketGetMyOrders(
+  query?: Record<string, any>,
+): Promise<any> {
+  const qs = query
+    ? "?" +
+      Object.entries(query)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  return marketFetch(`/orders/my_orders${qs}`, { method: "GET" });
+}
+
+/**
+ * Fetch a specific order with full details.
+ * GET /marketplace/orders/:id
+ */
+export async function marketGetOrder(id: number | string): Promise<any> {
+  return marketFetch(`/orders/${id}`, { method: "GET" });
+}
+
+/**
+ * Fetch received orders (for suppliers/agents/retailers).
+ * GET /marketplace/orders/received
+ */
+export async function marketGetReceivedOrders(
+  query?: Record<string, any>,
+): Promise<any> {
+  const qs = query
+    ? "?" +
+      Object.entries(query)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  return marketFetch(`/orders/received${qs}`, { method: "GET" });
+}
+
+/**
+ * Retailer confirms an order (final confirmation step).
+ * POST /marketplace/orders/:id/retailer_confirm
+ */
+export async function marketRetailerConfirmOrder(
+  id: number | string,
+  payload?: { confirmed?: boolean; reason?: string },
+): Promise<any> {
+  return marketFetch(`/orders/${id}/retailer_confirm`, {
+    method: "POST",
+    body: JSON.stringify(payload || { confirmed: true }),
+  });
+}
+
+/**
+ * Supplier confirms an order.
+ * POST /marketplace/orders/:id/supplier_confirm
+ */
+export async function marketSupplierConfirmOrder(
+  id: number | string,
+  payload: { confirmed: boolean; reason?: string },
+): Promise<any> {
+  return marketFetch(`/orders/${id}/supplier_confirm`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Cancel an order.
+ * POST /marketplace/orders/:id/cancel
+ */
+export async function marketCancelOrder(
+  id: number | string,
+  reason?: string,
+): Promise<any> {
+  return marketFetch(`/orders/${id}/cancel`, {
+    method: "POST",
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
 }

@@ -7,6 +7,11 @@ export type CartItem = {
   subtitle?: string;
   image?: any;
   quantity: number;
+  raw?: any;
+  listing_id?: number | string;
+  product_id?: number;
+  unit_id?: number;
+  ordered_to_id?: number;
 };
 
 type CartContextType = {

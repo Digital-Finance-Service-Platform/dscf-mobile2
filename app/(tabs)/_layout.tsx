@@ -184,9 +184,9 @@ function AppHeader() {
               } catch (e) {}
             }
             try {
-              router.replace("/welcome");
+              router.replace("/login");
               try {
-                console.log("AppHeader: navigated to /welcome");
+                console.log("AppHeader: navigated to /login");
               } catch (e) {}
             } catch (e) {
               // ignore
