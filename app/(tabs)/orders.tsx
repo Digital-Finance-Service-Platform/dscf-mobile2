@@ -13,14 +13,16 @@ import { FilterChips } from "@/components/filter-chips";
 import { StatusBadge } from "@/components/status-badge";
 import { PageShell } from "@/components/page-shell";
 import { useCart } from "@/components/cart-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { ORDERS } from "@/data/orders";
 import { formatCurrency } from "@/lib/formatters";
 import { marketGetMyOrders } from "@/lib/api/clients";
+import ReorderSummaryModal from "@/components/reorder-summary-modal";
+import { normalizeOrderStatus } from "@/lib/order-status";
 
 export const options = { headerShown: false };
 
-type OrderFilter = "ALL" | "DELIVERED" | "PROCESSING" | "SHIPPED";
+type OrderFilter = "ALL" | "DELIVERED" | "PROCESSING" | "SHIPPED" | "PENDING" | "CANCELLED";
 
 export default function OrdersScreen() {
   const { addItem } = useCart();
@@ -31,45 +33,101 @@ export default function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch orders from backend on mount
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        console.log("[OrdersScreen] fetching my orders");
-        const response = await marketGetMyOrders();
-        if (response?.success && Array.isArray(response?.data)) {
-          setOrders(response.data);
-          console.log("[OrdersScreen] orders fetched", response.data.length);
-        } else {
-          throw new Error(response?.message || "Failed to fetch orders");
-        }
-      } catch (err: any) {
-        console.warn("[OrdersScreen] fetch error", err?.message || err);
-        // Fallback to demo data for development
-        setOrders(ORDERS);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const [reorderStats, setReorderStats] = useState({ added: 0, skipped: 0, adjusted: 0 });
+  const [reorderModalVisible, setReorderModalVisible] = useState(false);
 
-    fetchOrders();
-  }, []);
+  // Fetch orders from backend on focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchOrders = async () => {
+        try {
+          setLoading(true);
+          console.log("[OrdersScreen] fetching my orders");
+          const response = await marketGetMyOrders();
+          if (response?.success && Array.isArray(response?.data)) {
+            // Group orders that were created within 2 minutes of each other
+            const groupedOrders: any[] = [];
+            
+            // Sort by created_at descending first so newest are first
+            const sortedData = [...response.data].sort((a, b) => 
+              new Date(b.created_at || b.date || 0).getTime() - new Date(a.created_at || a.date || 0).getTime()
+            );
+
+            sortedData.forEach((order) => {
+              const orderTime = new Date(order.created_at || order.date || 0).getTime();
+              
+              // Find an existing group where this order belongs
+              // Must have the same status and be within 2 minutes (120,000 ms)
+              const groupIndex = groupedOrders.findIndex(g => 
+                g.status === order.status &&
+                Math.abs(new Date(g.created_at || g.date || 0).getTime() - orderTime) < 120000
+              );
+
+              if (groupIndex >= 0) {
+                // Add to existing group
+                const g = groupedOrders[groupIndex];
+                
+                // To keep IDs in chronological order (oldest first like 90,91,92), we prepend the older order ID
+                g.id = `${order.id},${g.id}`;
+                
+                // Combine items
+                const gItems = g.items || g.order_items || [];
+                const oItems = order.items || order.order_items || [];
+                g.items = [...oItems, ...gItems]; // prepend items of older order
+                g.order_items = g.items; 
+                
+                // Add total amount
+                g.total_amount = Number(g.total_amount || g.total || 0) + Number(order.total_amount || order.total || 0);
+                g.total = g.total_amount;
+              } else {
+                // Create new group
+                groupedOrders.push({ ...order }); // clone to avoid mutating original
+              }
+            });
+
+            setOrders(groupedOrders);
+            console.log("[OrdersScreen] orders fetched and grouped", groupedOrders.length);
+          } else {
+            throw new Error(response?.message || "Failed to fetch orders");
+          }
+        } catch (err: any) {
+          console.warn("[OrdersScreen] fetch error", err?.message || err);
+          // Fallback to demo data for development
+          setOrders(ORDERS);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchOrders();
+    }, [])
+  );
 
   const FILTERS = [
     { key: "ALL", label: "All Orders" },
-    { key: "DELIVERED", label: "Delivered" },
+    { key: "PENDING", label: "Pending" },
     { key: "PROCESSING", label: "Processing" },
     { key: "SHIPPED", label: "Shipped" },
+    { key: "DELIVERED", label: "Delivered" },
+    { key: "CANCELLED", label: "Cancelled" },
   ];
 
   const filteredOrders = useMemo(() => {
     if (filter === "ALL") return orders;
-    return orders.filter((order) => order.status === filter);
+    return orders.filter((order) => {
+      const s = normalizeOrderStatus(order.status).toUpperCase();
+      if (filter === "PENDING" && (s === "PENDING" || s === "WAITING_RETAILER" || s === "WAITING_RETAILER_CONFIRMATION")) {
+        return true;
+      }
+      if (filter === "CANCELLED" && (s === "CANCELLED" || s === "CANCELED")) {
+        return true;
+      }
+      return s === filter;
+    });
   }, [filter, orders]);
 
   const onDetails = (order: any) => {
-    router.push(`/orders/${order.id}`);
+    router.push(`/orders/${encodeURIComponent(order.id)}`);
   };
 
   const onTrack = (order: any) => {
@@ -101,10 +159,14 @@ export default function OrdersScreen() {
         price: newPrice,
         subtitle: item.category || "",
         image: item.image || item.images_urls?.[0],
-        raw: item,
+        raw: {
+          ...item,
+          listing_id: item.listing_id || item.source_id,
+          aggregator_id: item.ordered_to_id,
+        },
         product_id: item.product_id,
         unit_id: item.unit_id,
-        listing_id: item.listing_id,
+        listing_id: item.listing_id || item.source_id,
         ordered_to_id: item.ordered_to_id,
       });
 
@@ -112,18 +174,8 @@ export default function OrdersScreen() {
       added += 1;
     });
 
-    // navigate to cart so the user can review their reordered items
-    router.push("/cart");
-
-    setTimeout(() => {
-      const parts = [];
-      if (added) parts.push(`${added} item${added > 1 ? "s" : ""} added`);
-      if (skipped) parts.push(`${skipped} item${skipped > 1 ? "s" : ""} unavailable`);
-      if (adjusted) parts.push(`${adjusted} price change${adjusted > 1 ? "s" : ""}`);
-      if (parts.length > 0) {
-        alert(`Reorder summary: ${parts.join(", ")}`);
-      }
-    }, 350);
+    setReorderStats({ added, skipped, adjusted });
+    setReorderModalVisible(true);
   };
 
   const handleFilterChange = (key: string) => {
@@ -168,12 +220,21 @@ export default function OrdersScreen() {
         renderItem={({ item }) => {
           const itemsList = item.items || item.order_items || [];
           const orderDate = new Date(item.created_at || item.date).toLocaleDateString();
+          
+          // Calculate subtotal from items in case the API's total is missing or wrong
+          const calculatedSubtotal = itemsList.reduce(
+            (sum: number, it: any) => sum + (Number(it.unit_price || it.price || 0) * Number(it.quantity || 1)),
+            0
+          );
+          const orderTotal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(item.total_amount ?? item.total);
+          const totalWithTax = +(orderTotal * 1.08).toFixed(2);
+
           return (
             <View style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <View>
-                  <ThemedText type="defaultSemiBold" style={styles.orderTitle}>
-                    Order #{item.id}
+              <View style={[styles.orderHeader, { width: '100%' }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <ThemedText type="defaultSemiBold" style={styles.orderTitle} numberOfLines={1} ellipsizeMode="tail">
+                    {String(item.id).includes(",") ? `Orders ${item.id}` : `Order #${item.id}`}
                   </ThemedText>
                   <ThemedText
                     type="default"
@@ -185,7 +246,9 @@ export default function OrdersScreen() {
                   </ThemedText>
                 </View>
 
-                <StatusBadge status={item.status} />
+                <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
+                  <StatusBadge status={item.status} />
+                </View>
               </View>
 
               <View style={styles.productsPill}>
@@ -238,7 +301,7 @@ export default function OrdersScreen() {
                     type="title"
                     style={{ marginTop: 6, fontSize: 18, color: "#800000" }}
                   >
-                    {formatCurrency(item.total_amount || item.total)}
+                    {formatCurrency(totalWithTax)}
                   </ThemedText>
                 </View>
 
@@ -282,6 +345,18 @@ export default function OrdersScreen() {
           );
         }}
       />
+      
+      <ReorderSummaryModal
+        visible={reorderModalVisible}
+        added={reorderStats.added}
+        skipped={reorderStats.skipped}
+        adjusted={reorderStats.adjusted}
+        onClose={() => setReorderModalVisible(false)}
+        onViewCart={() => {
+          setReorderModalVisible(false);
+          router.push("/cart");
+        }}
+      />
     </PageShell>
   );
 }
@@ -313,7 +388,7 @@ const styles = StyleSheet.create({
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   orderTitle: {
     fontSize: 18,

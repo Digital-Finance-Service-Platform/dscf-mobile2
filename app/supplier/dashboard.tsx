@@ -2,28 +2,30 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    View
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 import {
-    marketDeleteSupplierProduct,
-    marketGetMyProducts,
-    marketUpdateSupplierProduct,
+  marketDeleteSupplierProduct,
+  marketGetMyProducts,
+  marketUpdateSupplierProduct,
 } from "@/lib/api/clients";
 import { formatCurrency } from "@/lib/formatters";
 import { useSdk } from "@/lib/sdk/context";
+import { useSupplierMenuItems } from "@/hooks/use-supplier-menu";
 
 export default function SupplierDashboardScreen() {
   const router = useRouter();
   const { user } = useSdk();
+  const supplierMenuItems = useSupplierMenuItems();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,7 +91,7 @@ export default function SupplierDashboardScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -113,20 +115,10 @@ export default function SupplierDashboardScreen() {
   const stats = {
     total: products.length,
     active: products.filter((p) => p?.status === "active").length,
-    pending: products.filter((p) => p?.status === "pending" || p?.approval_status === "pending").length,
+    pending: products.filter(
+      (p) => p?.status === "pending" || p?.approval_status === "pending",
+    ).length,
   };
-
-  const renderStatCard = (label: string, value: number, icon: string, color: string) => (
-    <View key={label} style={[styles.statCard, { borderLeftColor: color }]}>
-      <MaterialIcons name={icon as any} size={28} color={color} style={styles.statIcon} />
-      <ThemedText type="defaultSemiBold" style={[styles.statValue, { color }]}>
-        {value}
-      </ThemedText>
-      <ThemedText type="default" style={styles.statLabel}>
-        {label}
-      </ThemedText>
-    </View>
-  );
 
   const renderProduct = ({ item }: { item: any }) => {
     const product = item?.product ?? {};
@@ -153,17 +145,24 @@ export default function SupplierDashboardScreen() {
             </ThemedText>
             <View style={styles.priceRow}>
               <ThemedText type="default" style={styles.price}>
-                {item?.supplier_price ? formatCurrency(item.supplier_price) : "No price"}
+                {item?.supplier_price
+                  ? formatCurrency(item.supplier_price)
+                  : "No price"}
               </ThemedText>
               <View
                 style={[
                   styles.statusBadge,
-                  { backgroundColor: `${getStatusColor(item?.status ?? "inactive")}20` },
+                  {
+                    backgroundColor: `${getStatusColor(item?.status ?? "inactive")}20`,
+                  },
                 ]}
               >
                 <ThemedText
                   type="defaultSemiBold"
-                  style={[styles.statusText, { color: getStatusColor(item?.status ?? "inactive") }]}
+                  style={[
+                    styles.statusText,
+                    { color: getStatusColor(item?.status ?? "inactive") },
+                  ]}
                 >
                   {item?.status ?? "inactive"}
                 </ThemedText>
@@ -196,7 +195,10 @@ export default function SupplierDashboardScreen() {
               </ThemedText>
               <ThemedText
                 type="defaultSemiBold"
-                style={[styles.detailValue, { color: getStatusColor(item.approval_status) }]}
+                style={[
+                  styles.detailValue,
+                  { color: getStatusColor(item.approval_status) },
+                ]}
               >
                 {item.approval_status}
               </ThemedText>
@@ -246,7 +248,13 @@ export default function SupplierDashboardScreen() {
 
   if (loading) {
     return (
-      <PageShell title="Supplier Dashboard" showBackButton style={styles.shell}>
+      <PageShell
+        showBackButton
+        headerVariant="retailer"
+        showLogo
+        menuItems={supplierMenuItems}
+        style={styles.shell}
+      >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0a2f4a" />
         </View>
@@ -254,47 +262,122 @@ export default function SupplierDashboardScreen() {
     );
   }
 
-  const userName = user?.user_profile
+  const userName = user?.user_profile?.first_name
     ? `${user.user_profile.first_name ?? ""} ${user.user_profile.last_name ?? ""}`.trim()
-    : user?.phone ?? user?.email ?? "Supplier";
+    : "Supplier";
+  const contactInfo = user?.phone ?? user?.email ?? "";
+  const initials =
+    userName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "S";
 
   return (
     <PageShell
-      title="Supplier Dashboard"
       showBackButton
+      headerVariant="retailer"
+      showLogo
+      logoSize={{ width: 200, height: 112 }}
+      menuItems={supplierMenuItems}
+      compactHeader
       style={styles.shell}
-      rightNode={
-        <Pressable 
-          onPress={() => router.push("/supplier/create-product" as any)}
-          style={styles.headerAddBtn}
-        >
-          <MaterialIcons name="add" size={20} color="#fff" />
-        </Pressable>
-      }
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        contentContainerStyle={styles.scrollContent}
       >
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.avatarCircle}>
+              <ThemedText type="defaultSemiBold" style={styles.avatarText}>
+                {initials}
+              </ThemedText>
+            </View>
+
+            <View style={styles.heroTextWrap}>
+              <ThemedText type="default" style={styles.heroGreeting}>
+                Welcome back
+              </ThemedText>
+              <ThemedText
+                type="defaultSemiBold"
+                style={styles.heroName}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {userName}
+              </ThemedText>
+              {contactInfo ? (
+                <ThemedText
+                  type="default"
+                  style={styles.heroContact}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {contactInfo}
+                </ThemedText>
+              ) : (
+                <ThemedText type="default" style={styles.heroContact}>
+                  Manage your products and inventory
+                </ThemedText>
+              )}
+            </View>
+
+            <View style={styles.supplierBadge}>
+              <MaterialIcons name="store" size={12} color="#00274d" />
+              <ThemedText
+                type="defaultSemiBold"
+                style={styles.supplierBadgeText}
+              >
+                Supplier
+              </ThemedText>
+            </View>
+          </View>
+
+          <View style={styles.heroStatsRow}>
+            <View style={styles.heroStatItem}>
+              <ThemedText type="defaultSemiBold" style={styles.heroStatValue}>
+                {stats.total}
+              </ThemedText>
+              <ThemedText type="default" style={styles.heroStatLabel}>
+                Total
+              </ThemedText>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStatItem}>
+              <ThemedText
+                type="defaultSemiBold"
+                style={[styles.heroStatValue, { color: "#2e7d32" }]}
+              >
+                {stats.active}
+              </ThemedText>
+              <ThemedText type="default" style={styles.heroStatLabel}>
+                Active
+              </ThemedText>
+            </View>
+            <View style={styles.heroStatDivider} />
+            <View style={styles.heroStatItem}>
+              <ThemedText
+                type="defaultSemiBold"
+                style={[styles.heroStatValue, { color: "#1976d2" }]}
+              >
+                {stats.pending}
+              </ThemedText>
+              <ThemedText type="default" style={styles.heroStatLabel}>
+                Pending
+              </ThemedText>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.content}>
-          {/* Welcome Section */}
-          <View style={styles.welcomeSection}>
-            <ThemedText type="defaultSemiBold" style={styles.welcomeTitle}>
-              Welcome back,{"\n"}{userName}
-            </ThemedText>
-            <ThemedText type="default" style={styles.welcomeSubtitle}>
-              Manage your products and inventory
-            </ThemedText>
-          </View>
-
-          {/* Stats Cards */}
-          <View style={styles.statsRow}>
-            {renderStatCard("Total", stats.total, "inventory", "#00274d")}
-            {renderStatCard("Active", stats.active, "check-circle", "#2e7d32")}
-            {renderStatCard("Pending", stats.pending, "hourglass-empty", "#1976d2")}
-          </View>
-
-          {/* Quick Actions */}
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            Quick Actions
+          </ThemedText>
           <View style={styles.quickActions}>
             <Pressable
               style={styles.quickActionButton}
@@ -329,7 +412,10 @@ export default function SupplierDashboardScreen() {
 
           {/* Recent Products */}
           <View style={styles.sectionHeader}>
-            <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+            <ThemedText
+              type="defaultSemiBold"
+              style={styles.sectionHeaderTitle}
+            >
               Recent Products
             </ThemedText>
             <Pressable onPress={() => router.push("/supplier/products" as any)}>
@@ -352,7 +438,12 @@ export default function SupplierDashboardScreen() {
             </View>
           ) : products.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialIcons name="archive" size={64} color="#6b6b6b" style={styles.emptyIcon} />
+              <MaterialIcons
+                name="archive"
+                size={64}
+                color="#6b6b6b"
+                style={styles.emptyIcon}
+              />
               <ThemedText type="default" style={styles.emptyText}>
                 No products yet. Request a product to get started.
               </ThemedText>
@@ -360,7 +451,10 @@ export default function SupplierDashboardScreen() {
                 style={styles.addProductButton}
                 onPress={() => router.push("/supplier/create-product" as any)}
               >
-                <ThemedText type="defaultSemiBold" style={styles.addProductText}>
+                <ThemedText
+                  type="defaultSemiBold"
+                  style={styles.addProductText}
+                >
                   Request Product
                 </ThemedText>
               </Pressable>
@@ -379,92 +473,142 @@ export default function SupplierDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  shell: { paddingTop: 40, backgroundColor: "#fff" },
-  content: { padding: 16, paddingBottom: 20 },
-  headerAddBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#00274d",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  shell: { paddingTop: 30, backgroundColor: "#f4f4f5" },
+  scrollContent: { paddingBottom: 24 },
+  content: { paddingTop: 4 },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 40,
   },
-  welcomeSection: {
+  heroCard: {
+    backgroundColor: "#00274d",
+    borderRadius: 18,
+    padding: 16,
     marginBottom: 16,
+    shadowColor: "#00274d",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  welcomeTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#00274d",
-  },
-  welcomeSubtitle: {
-    fontSize: 13,
-    color: "#6b6b6b",
-    marginTop: 4,
-  },
-  statsRow: {
+  heroTopRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
     alignItems: "center",
+  },
+  avatarCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#EAECF0",
-    borderLeftWidth: 4,
+    borderColor: "rgba(255,255,255,0.24)",
   },
-  statIcon: {
-    marginBottom: 4,
+  avatarText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
   },
-  statValue: {
+  heroTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  heroGreeting: {
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 12,
+  },
+  heroName: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  heroContact: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  supplierBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#fff",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  supplierBadgeText: {
+    color: "#00274d",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  heroStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.14)",
+  },
+  heroStatItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  heroStatValue: {
+    color: "#fff",
     fontSize: 20,
     fontWeight: "700",
   },
-  statLabel: {
+  heroStatLabel: {
+    color: "rgba(255,255,255,0.72)",
     fontSize: 11,
-    color: "#6b6b6b",
     marginTop: 2,
+  },
+  heroStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.14)",
   },
   quickActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     marginBottom: 20,
   },
   quickActionButton: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
-    paddingVertical: 10,
-    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#EAECF0",
-    gap: 4,
+    gap: 6,
   },
   quickActionText: {
     color: "#00274d",
     fontSize: 12,
     fontWeight: "600",
   },
+  sectionTitle: {
+    fontSize: 16,
+    color: "#00274d",
+    fontWeight: "700",
+    marginBottom: 10,
+  },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 10,
+    marginTop: 4,
   },
-  sectionTitle: {
+  sectionHeaderTitle: {
     fontSize: 16,
     color: "#00274d",
     fontWeight: "700",
@@ -523,7 +667,12 @@ const styles = StyleSheet.create({
   },
   detailItem: { flex: 1, alignItems: "center" },
   detailLabel: { color: "#6b6b6b", fontSize: 10 },
-  detailValue: { color: "#0a2f4a", fontSize: 13, marginTop: 2, fontWeight: "600" },
+  detailValue: {
+    color: "#0a2f4a",
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: "600",
+  },
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -541,7 +690,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#0a2f4a",
   },
-  actionText: { color: "#0a2f4a", marginLeft: 4, fontSize: 12, fontWeight: "600" },
+  actionText: {
+    color: "#0a2f4a",
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "600",
+  },
   deleteButton: {
     flex: 1,
     flexDirection: "row",
@@ -553,7 +707,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#b00020",
   },
-  deleteText: { color: "#b00020", marginLeft: 4, fontSize: 12, fontWeight: "600" },
+  deleteText: {
+    color: "#b00020",
+    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: "600",
+  },
   buttonDisabled: { opacity: 0.6 },
   errorContainer: {
     alignItems: "center",

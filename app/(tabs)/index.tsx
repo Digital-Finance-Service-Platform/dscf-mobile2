@@ -256,6 +256,19 @@ export default function HomeScreen() {
           marketGetAggregatorListings(),
         ]);
         
+        const isAuthError = (res: PromiseSettledResult<any>) =>
+          res.status === "rejected" &&
+          (String(res.reason).toLowerCase().includes("authentication required") ||
+            String(res.reason).includes("401"));
+
+        if (isAuthError(visibleRes) || isAuthError(aggregatorRes)) {
+          console.warn("[HomeScreen] Authentication required, redirecting to login...");
+          if (mounted) {
+            router.replace("/login");
+            return;
+          }
+        }
+        
         const visibleData = visibleRes.status === "fulfilled"
           ? (Array.isArray(visibleRes.value?.data) ? visibleRes.value.data : Array.isArray(visibleRes.value) ? visibleRes.value : [])
           : [];
@@ -271,6 +284,14 @@ export default function HomeScreen() {
       } catch (err) {
         console.warn("Failed to load marketplace listings:", err);
         const msg = String(err ?? "");
+        
+        if (msg.toLowerCase().includes("authentication required") || msg.includes("401")) {
+          if (mounted) {
+            router.replace("/login");
+            return;
+          }
+        }
+        
         if (
           msg.includes("Network request failed") ||
           msg.toLowerCase().includes("could not reach market server") ||

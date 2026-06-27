@@ -1,37 +1,44 @@
-import React, { useState, useEffect } from "react";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import React, { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  FlatList,
   Modal,
+  Pressable,
+  StyleSheet,
   TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter } from "expo-router";
 
 import { PageShell } from "@/components/page-shell";
+import { SupplierEmptyState } from "@/components/supplier/supplier-empty-state";
+import { SupplierNavCard } from "@/components/supplier/supplier-nav-card";
 import { ThemedText } from "@/components/themed-text";
+import { Order, OrderItem } from "@/app/types/order";
+import { useSupplierMenuItems } from "@/hooks/use-supplier-menu";
 import { marketGetReceivedOrders, marketSupplierConfirmOrder } from "@/lib/api/clients";
 import { formatCurrency } from "@/lib/formatters";
-import { Order, OrderItem } from "@/app/types/order";
+import { supplierTheme } from "@/lib/supplier-theme";
 
 type MenuTab = "MENU" | "RECEIVED";
 
 export default function SupplierOrdersScreen() {
-  const router = useRouter();
+  const supplierMenuItems = useSupplierMenuItems();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<MenuTab>("MENU");
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Modal State
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<{ item: OrderItem; order: Order } | null>(null);
-  const [confirmationStatus, setConfirmationStatus] = useState<"confirmed" | "not_confirmed" | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ item: OrderItem; order: Order } | null>(
+    null,
+  );
+  const [confirmationStatus, setConfirmationStatus] = useState<"confirmed" | "not_confirmed" | null>(
+    null,
+  );
   const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -44,46 +51,20 @@ export default function SupplierOrdersScreen() {
   const fetchReceivedOrders = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await marketGetReceivedOrders();
       if (res?.success && Array.isArray(res?.data)) {
         setOrders(res.data);
       } else if (Array.isArray(res)) {
         setOrders(res);
+      } else if (Array.isArray(res?.data)) {
+        setOrders(res.data);
       } else {
         setOrders([]);
       }
     } catch (err: any) {
-      console.warn("Failed to fetch received orders:", err);
-      // Fallback dummy data if API fails or is empty
-      setOrders([
-        {
-          id: 1001,
-          order_type: "direct_listing",
-          status: "pending",
-          fulfillment_type: "delivery",
-          payment_method: "cash",
-          total_amount: 1500,
-          user_id: 1,
-          ordered_by_id: 2,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          order_items: [
-            {
-              id: 1,
-              order_id: 1001,
-              product_id: 5,
-              unit_id: 1,
-              quantity: 10,
-              unit_price: 150,
-              subtotal: 1500,
-              status: "pending",
-              product_name: "Premium Coffee Beans",
-              unit_name: "kg",
-              source_name: "PROD-001",
-            },
-          ],
-        },
-      ] as Order[]);
+      setError(err?.message || "Failed to load received orders");
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -91,7 +72,7 @@ export default function SupplierOrdersScreen() {
 
   const handleAction = (item: OrderItem, order: Order) => {
     setSelectedItem({ item, order });
-    setConfirmationStatus("confirmed"); // default
+    setConfirmationStatus("confirmed");
     setRejectReason("");
     setModalVisible(true);
   };
@@ -107,10 +88,6 @@ export default function SupplierOrdersScreen() {
     try {
       setActionLoading(true);
       const isConfirmed = confirmationStatus === "confirmed";
-      // We pass the order id, but if we need to confirm specific items, 
-      // we might need to send item details or call an item-specific endpoint. 
-      // Based on typical API designs, supplier_confirm usually confirms the entire order 
-      // or we pass item IDs. We'll pass the order ID.
       await marketSupplierConfirmOrder(selectedItem.order.id, {
         confirmed: isConfirmed,
         reason: isConfirmed ? undefined : rejectReason,
@@ -118,49 +95,42 @@ export default function SupplierOrdersScreen() {
 
       Alert.alert(
         "Success",
-        isConfirmed
-          ? "Order confirmed successfully."
-          : "Order not confirmed."
+        isConfirmed ? "Order confirmed successfully." : "Order not confirmed.",
       );
-      
+
       setModalVisible(false);
-      fetchReceivedOrders(); // Refresh list
-    } catch (error: any) {
-      console.warn("Error confirming order:", error);
-      Alert.alert("Error", error?.message || "Failed to process the order.");
+      fetchReceivedOrders();
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Failed to process the order.");
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Flatten products from orders
   const flattenedProducts = orders.flatMap((order) => {
     const items = order.order_items || (order as any).items || [];
-    return items.map((item: any) => ({
-      order,
-      item,
-    }));
+    return items.map((item: OrderItem) => ({ order, item }));
   });
+
+  const handleBackPress = () => {
+    if (activeTab === "RECEIVED") {
+      setActiveTab("MENU");
+      return;
+    }
+  };
 
   const renderMenu = () => (
     <View style={styles.menuContainer}>
-      <TouchableOpacity
-        style={styles.menuCard}
+      <ThemedText type="default" style={styles.menuIntro}>
+        Manage incoming orders assigned to your supplier account.
+      </ThemedText>
+      <SupplierNavCard
+        icon="call-received"
+        title="Received Orders"
+        subtitle="View and manage products assigned to you"
+        badge={flattenedProducts.length || undefined}
         onPress={() => setActiveTab("RECEIVED")}
-      >
-        <View style={styles.menuIconWrap}>
-          <MaterialIcons name="call-received" size={32} color="#0a2f4a" />
-        </View>
-        <View style={styles.menuTextWrap}>
-          <ThemedText type="defaultSemiBold" style={styles.menuTitle}>
-            Received Orders
-          </ThemedText>
-          <ThemedText type="default" style={styles.menuSubtitle}>
-            View and manage products assigned to you
-          </ThemedText>
-        </View>
-        <MaterialIcons name="chevron-right" size={24} color="#6b6b6b" />
-      </TouchableOpacity>
+      />
     </View>
   );
 
@@ -168,19 +138,34 @@ export default function SupplierOrdersScreen() {
     if (loading) {
       return (
         <View style={styles.centerWrap}>
-          <ActivityIndicator size="large" color="#0a2f4a" />
+          <ActivityIndicator size="large" color={supplierTheme.primary} />
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.centerWrap}>
+          <MaterialIcons name="error-outline" size={40} color={supplierTheme.error} />
+          <ThemedText type="default" style={styles.errorText}>
+            {error}
+          </ThemedText>
+          <Pressable onPress={fetchReceivedOrders} style={styles.retryButton}>
+            <ThemedText type="defaultSemiBold" style={styles.retryText}>
+              Retry
+            </ThemedText>
+          </Pressable>
         </View>
       );
     }
 
     if (flattenedProducts.length === 0) {
       return (
-        <View style={styles.centerWrap}>
-          <MaterialIcons name="inbox" size={64} color="#ccc" />
-          <ThemedText type="defaultSemiBold" style={{ marginTop: 16, color: "#666" }}>
-            No received orders yet
-          </ThemedText>
-        </View>
+        <SupplierEmptyState
+          icon="inbox"
+          title="No received orders"
+          message="When retailers place orders with your products, they will appear here."
+        />
       );
     }
 
@@ -193,62 +178,54 @@ export default function SupplierOrdersScreen() {
         renderItem={({ item: { order, item } }) => (
           <View style={styles.productCard}>
             <View style={styles.cardHeader}>
-              <ThemedText type="defaultSemiBold" style={styles.orderId}>
-                Order #{order.id}
-              </ThemedText>
+              <View style={styles.orderIdWrap}>
+                <MaterialIcons name="receipt-long" size={18} color={supplierTheme.primary} />
+                <ThemedText type="defaultSemiBold" style={styles.orderId}>
+                  Order #{order.id}
+                </ThemedText>
+              </View>
               <ThemedText type="default" style={styles.orderDate}>
                 {new Date(order.created_at).toLocaleDateString()}
               </ThemedText>
             </View>
 
             <View style={styles.productDetails}>
-              <View style={styles.detailRow}>
-                <ThemedText type="default" style={styles.label}>Product Code:</ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.value}>
-                  {item.source_name || `PRD-${item.product_id}`}
-                </ThemedText>
-              </View>
-              <View style={styles.detailRow}>
-                <ThemedText type="default" style={styles.label}>Product Name:</ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.value}>
-                  {item.product_name || "Unknown Product"}
-                </ThemedText>
-              </View>
-              <View style={styles.detailRow}>
-                <ThemedText type="default" style={styles.label}>Quantity:</ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.value}>
-                  {item.quantity}
-                </ThemedText>
-              </View>
-              <View style={styles.detailRow}>
-                <ThemedText type="default" style={styles.label}>UOM:</ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.value}>
-                  {item.unit_name || "Unit"}
-                </ThemedText>
-              </View>
-              <View style={styles.detailRow}>
-                <ThemedText type="default" style={styles.label}>Unit Price:</ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.value}>
-                  {formatCurrency(item.unit_price)}
-                </ThemedText>
-              </View>
-              <View style={styles.detailRow}>
-                <ThemedText type="default" style={styles.label}>Total Price:</ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.totalValue}>
-                  {formatCurrency(item.subtotal || (Number(item.quantity) * Number(item.unit_price)))}
-                </ThemedText>
-              </View>
+              <DetailRow
+                icon="tag"
+                label="Product Code"
+                value={item.source_name || `PRD-${item.product_id}`}
+              />
+              <DetailRow
+                icon="inventory"
+                label="Product Name"
+                value={item.product_name || "Unknown Product"}
+              />
+              <DetailRow icon="format-list-numbered" label="Quantity" value={String(item.quantity)} />
+              <DetailRow icon="straighten" label="UOM" value={item.unit_name || "Unit"} />
+              <DetailRow
+                icon="payments"
+                label="Unit Price"
+                value={formatCurrency(item.unit_price ?? 0)}
+              />
+              <DetailRow
+                icon="account-balance-wallet"
+                label="Total Price"
+                value={formatCurrency(
+                  item.subtotal || Number(item.quantity) * Number(item.unit_price ?? 0),
+                )}
+                highlight
+              />
             </View>
 
             <View style={styles.actionRow}>
-              <TouchableOpacity
+              <Pressable
                 style={styles.actionButton}
                 onPress={() => handleAction(item, order)}
               >
                 <ThemedText type="defaultSemiBold" style={styles.actionButtonText}>
                   Action
                 </ThemedText>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         )}
@@ -260,13 +237,10 @@ export default function SupplierOrdersScreen() {
     <PageShell
       title={activeTab === "MENU" ? "Order Menu" : "Received Orders"}
       showBackButton
-      onBack={() => {
-        if (activeTab === "RECEIVED") {
-          setActiveTab("MENU");
-        } else {
-          router.back();
-        }
-      }}
+      useBackIcon={activeTab === "RECEIVED"}
+      onBackPress={activeTab === "RECEIVED" ? handleBackPress : undefined}
+      headerVariant="retailer"
+      menuItems={supplierMenuItems}
       style={styles.shell}
     >
       <View style={styles.container}>
@@ -275,23 +249,23 @@ export default function SupplierOrdersScreen() {
 
       <Modal
         visible={modalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 24 }]}>
             <View style={styles.modalHeader}>
               <ThemedText type="defaultSemiBold" style={styles.modalTitle}>
                 Confirm Order
               </ThemedText>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <MaterialIcons name="close" size={24} color="#6b6b6b" />
-              </TouchableOpacity>
+              <Pressable onPress={() => setModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color={supplierTheme.textMuted} />
+              </Pressable>
             </View>
 
             <View style={styles.modalBody}>
-              <TouchableOpacity
+              <Pressable
                 style={[
                   styles.optionCard,
                   confirmationStatus === "confirmed" && styles.optionCardSelected,
@@ -299,14 +273,22 @@ export default function SupplierOrdersScreen() {
                 onPress={() => setConfirmationStatus("confirmed")}
               >
                 <MaterialIcons
-                  name={confirmationStatus === "confirmed" ? "radio-button-checked" : "radio-button-unchecked"}
+                  name={
+                    confirmationStatus === "confirmed"
+                      ? "radio-button-checked"
+                      : "radio-button-unchecked"
+                  }
                   size={24}
-                  color={confirmationStatus === "confirmed" ? "#0a2f4a" : "#6b6b6b"}
+                  color={
+                    confirmationStatus === "confirmed"
+                      ? supplierTheme.primary
+                      : supplierTheme.textMuted
+                  }
                 />
                 <ThemedText style={styles.optionText}>Order Confirmed</ThemedText>
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
                 style={[
                   styles.optionCard,
                   confirmationStatus === "not_confirmed" && styles.optionCardSelected,
@@ -314,36 +296,42 @@ export default function SupplierOrdersScreen() {
                 onPress={() => setConfirmationStatus("not_confirmed")}
               >
                 <MaterialIcons
-                  name={confirmationStatus === "not_confirmed" ? "radio-button-checked" : "radio-button-unchecked"}
+                  name={
+                    confirmationStatus === "not_confirmed"
+                      ? "radio-button-checked"
+                      : "radio-button-unchecked"
+                  }
                   size={24}
-                  color={confirmationStatus === "not_confirmed" ? "#0a2f4a" : "#6b6b6b"}
+                  color={
+                    confirmationStatus === "not_confirmed"
+                      ? supplierTheme.primary
+                      : supplierTheme.textMuted
+                  }
                 />
                 <ThemedText style={styles.optionText}>Order Not Confirmed</ThemedText>
-              </TouchableOpacity>
+              </Pressable>
 
-              {confirmationStatus === "not_confirmed" && (
+              {confirmationStatus === "not_confirmed" ? (
                 <View style={styles.reasonContainer}>
                   <ThemedText style={styles.reasonLabel}>Reason for not confirming</ThemedText>
                   <TextInput
                     style={styles.reasonInput}
                     placeholder="Enter reason..."
+                    placeholderTextColor="#8a8a8a"
                     value={rejectReason}
                     onChangeText={setRejectReason}
                     multiline
                     numberOfLines={3}
                   />
                 </View>
-              )}
+              ) : null}
             </View>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
-              >
+              <Pressable style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                 <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Pressable>
+              <Pressable
                 style={[styles.saveButton, actionLoading && styles.saveButtonDisabled]}
                 onPress={handleSaveConfirmation}
                 disabled={actionLoading}
@@ -353,7 +341,7 @@ export default function SupplierOrdersScreen() {
                 ) : (
                   <ThemedText style={styles.saveButtonText}>Save</ThemedText>
                 )}
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -362,181 +350,223 @@ export default function SupplierOrdersScreen() {
   );
 }
 
+function DetailRow({
+  icon,
+  label,
+  value,
+  highlight,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <View style={[styles.detailRow, highlight && styles.totalRow]}>
+      <View style={styles.detailItem}>
+        <MaterialIcons
+          name={icon}
+          size={14}
+          color={highlight ? supplierTheme.accent : supplierTheme.textMuted}
+        />
+        <ThemedText type="default" style={[styles.label, highlight && styles.totalLabel]}>
+          {label}
+        </ThemedText>
+      </View>
+      <ThemedText
+        type="defaultSemiBold"
+        style={[styles.value, highlight && styles.totalValue]}
+      >
+        {value}
+      </ThemedText>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   shell: {
     paddingTop: 60,
-    backgroundColor: "#f4f4f5",
+    backgroundColor: supplierTheme.background,
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
   },
   centerWrap: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 60,
+    paddingHorizontal: 24,
+    gap: 12,
   },
   menuContainer: {
     flex: 1,
+    gap: 16,
   },
-  menuCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    marginBottom: 16,
-  },
-  menuIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#f0f4f8",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  menuTextWrap: {
-    flex: 1,
-  },
-  menuTitle: {
-    fontSize: 18,
-    color: "#0a2f4a",
-    marginBottom: 4,
-  },
-  menuSubtitle: {
-    fontSize: 13,
-    color: "#6b6b6b",
+  menuIntro: {
+    color: supplierTheme.textMuted,
+    fontSize: 15,
+    lineHeight: 22,
   },
   productCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: supplierTheme.card,
+    borderRadius: 16,
+    padding: 18,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: supplierTheme.border,
+    ...supplierTheme.cardShadow,
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    paddingBottom: 12,
-    marginBottom: 12,
+    borderBottomColor: supplierTheme.border,
+    paddingBottom: 14,
+    marginBottom: 14,
+  },
+  orderIdWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   orderId: {
-    fontSize: 16,
-    color: "#0a2f4a",
+    fontSize: 17,
+    color: supplierTheme.primary,
+    fontWeight: "600",
   },
   orderDate: {
     fontSize: 13,
-    color: "#6b6b6b",
+    color: supplierTheme.textMuted,
   },
   productDetails: {
-    gap: 8,
+    gap: 12,
   },
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+  detailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
   label: {
     fontSize: 14,
-    color: "#6b6b6b",
+    color: supplierTheme.textMuted,
   },
   value: {
     fontSize: 14,
-    color: "#333",
+    color: supplierTheme.text,
+    fontWeight: "500",
+    textAlign: "right",
+    flexShrink: 1,
+  },
+  totalRow: {
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(128, 0, 0, 0.12)",
+  },
+  totalLabel: {
+    color: supplierTheme.accent,
+    fontWeight: "600",
   },
   totalValue: {
-    fontSize: 15,
-    color: "#800000",
+    fontSize: 17,
+    color: supplierTheme.accent,
+    fontWeight: "700",
   },
   actionRow: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 18,
+    paddingTop: 18,
     borderTopWidth: 1,
-    borderTopColor: "#eee",
+    borderTopColor: supplierTheme.border,
     alignItems: "flex-end",
   },
   actionButton: {
-    backgroundColor: "#0a2f4a",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: supplierTheme.primaryDark,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   actionButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "600",
   },
+  errorText: { color: supplierTheme.error, textAlign: "center" },
+  retryButton: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: supplierTheme.primary,
+    borderRadius: 12,
+  },
+  retryText: { color: "#fff" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#fff",
+    backgroundColor: supplierTheme.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 20,
-    minHeight: 300,
+    padding: 24,
+    minHeight: 320,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   modalTitle: {
-    fontSize: 18,
-    color: "#0a2f4a",
+    fontSize: 20,
+    color: supplierTheme.primary,
+    fontWeight: "700",
   },
   modalBody: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   optionCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#eee",
+    borderWidth: 1.5,
+    borderColor: supplierTheme.border,
     marginBottom: 12,
   },
   optionCardSelected: {
-    borderColor: "#0a2f4a",
-    backgroundColor: "#f0f4f8",
+    borderColor: supplierTheme.primary,
+    backgroundColor: supplierTheme.iconBg,
   },
   optionText: {
     fontSize: 16,
-    color: "#333",
+    color: supplierTheme.text,
     marginLeft: 12,
   },
   reasonContainer: {
-    marginTop: 8,
+    marginTop: 12,
   },
   reasonLabel: {
     fontSize: 14,
-    color: "#6b6b6b",
+    color: supplierTheme.textMuted,
     marginBottom: 8,
+    fontWeight: "500",
   },
   reasonInput: {
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 1.5,
+    borderColor: supplierTheme.border,
+    borderRadius: 12,
+    padding: 14,
     fontSize: 15,
-    color: "#333",
-    backgroundColor: "#fafafa",
+    color: supplierTheme.text,
+    backgroundColor: supplierTheme.background,
     minHeight: 80,
     textAlignVertical: "top",
   },
@@ -547,20 +577,21 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     padding: 14,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#eee",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: supplierTheme.border,
     alignItems: "center",
   },
   cancelButtonText: {
     fontSize: 16,
-    color: "#666",
+    color: supplierTheme.textMuted,
+    fontWeight: "600",
   },
   saveButton: {
     flex: 1,
     padding: 14,
-    borderRadius: 8,
-    backgroundColor: "#0a2f4a",
+    borderRadius: 12,
+    backgroundColor: supplierTheme.primaryDark,
     alignItems: "center",
   },
   saveButtonDisabled: {

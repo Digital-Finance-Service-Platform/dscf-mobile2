@@ -17,8 +17,10 @@ import {
     marketGetCategories,
     marketGetUnits,
 } from "@/lib/api/clients";
+import { useSupplierMenuItems } from "@/hooks/use-supplier-menu";
 
 export default function RequestProductScreen() {
+  const supplierMenuItems = useSupplierMenuItems();
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -87,7 +89,7 @@ export default function RequestProductScreen() {
 
   if (success) {
     return (
-      <PageShell title="Request Product" showBackButton style={styles.shell}>
+      <PageShell title="Request Product" showBackButton headerVariant="retailer" menuItems={supplierMenuItems} style={styles.shell}>
         <View style={styles.successContainer}>
           <MaterialIcons name="check-circle" size={64} color="#2e7d32" />
           <ThemedText type="defaultSemiBold" style={styles.successTitle}>
@@ -111,7 +113,7 @@ export default function RequestProductScreen() {
   }
 
   return (
-    <PageShell title="Request New Product" showBackButton style={styles.shell}>
+    <PageShell title="Request New Product" showBackButton headerVariant="retailer" menuItems={supplierMenuItems} style={styles.shell}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}

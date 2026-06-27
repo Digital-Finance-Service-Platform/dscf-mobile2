@@ -824,9 +824,15 @@ export async function marketRetailerConfirmOrder(
   id: number | string,
   payload?: { confirmed?: boolean; reason?: string },
 ): Promise<any> {
+  const body: { confirmed: boolean; reason?: string } = {
+    confirmed: payload?.confirmed ?? true,
+  };
+  if (payload?.reason) {
+    body.reason = payload.reason;
+  }
   return marketFetch(`/orders/${id}/retailer_confirm`, {
     method: "POST",
-    body: JSON.stringify(payload || { confirmed: true }),
+    body: JSON.stringify(body),
   });
 }
 

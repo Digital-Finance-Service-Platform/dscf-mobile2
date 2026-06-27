@@ -19,17 +19,23 @@ import { ThemedText } from "@/components/themed-text";
 import { useCart } from "@/components/cart-context";
 import { ORDERS } from "@/data/orders";
 import SimpleAlertModal from "@/components/simple-alert-modal";
+import ReorderSummaryModal from "@/components/reorder-summary-modal";
 import {
   marketGetOrder,
   marketRetailerConfirmOrder,
   marketCancelOrder,
 } from "@/lib/api/clients";
+import {
+  isAwaitingRetailerConfirmation,
+  shouldUseRetailerConfirmEndpoint,
+} from "@/lib/order-status";
 
 export const options = { headerShown: false };
 
 export default function OrderDetails() {
   const params = useLocalSearchParams();
-  const { id } = params as { id: string };
+  const rawId = Array.isArray(params.id) ? params.id.join(",") : String(params.id || "");
+  const idStr = decodeURIComponent(rawId);
   const router = useRouter();
   const { addItem } = useCart();
   const insets = useSafeAreaInsets();
@@ -39,23 +45,59 @@ export default function OrderDetails() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertTitle, setAlertTitle] = useState("");
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertOnClose, setAlertOnClose] = useState<(() => void) | null>(null);
+
+  const [reorderStats, setReorderStats] = useState({ added: 0, skipped: 0, adjusted: 0 });
+  const [reorderModalVisible, setReorderModalVisible] = useState(false);
+
+  const loadOrder = async () => {
+    console.log("[OrderDetails] fetching order", idStr);
+    if (idStr && idStr.includes(",")) {
+      const ids = idStr.split(",").map((s) => s.trim());
+      const responses = await Promise.all(ids.map((i) => marketGetOrder(i)));
+
+      const combinedOrder = {
+        ...responses[0]?.data,
+        id: idStr,
+        status: responses[0]?.data?.status || "pending",
+        created_at: responses[0]?.data?.created_at || new Date().toISOString(),
+        total_amount: responses.reduce(
+          (sum, res) => sum + Number(res?.data?.total_amount || res?.data?.total || 0),
+          0
+        ),
+        order_items: responses.flatMap(
+          (res) => res?.data?.order_items || res?.data?.items || []
+        ),
+      };
+      setOrder(combinedOrder);
+      console.log("[OrderDetails] combined order fetched");
+      return combinedOrder;
+    }
+
+    const response = await marketGetOrder(idStr);
+    if (response?.success && response?.data) {
+      setOrder(response.data);
+      console.log("[OrderDetails] order fetched", response.data.id);
+      return response.data;
+    }
+
+    throw new Error(response?.message || "Failed to fetch order");
+  };
+
   // Fetch order from backend
   useEffect(() => {
     const fetchOrder = async () => {
       try {
         setLoading(true);
-        console.log("[OrderDetails] fetching order", id);
-        const response = await marketGetOrder(id);
-        if (response?.success && response?.data) {
-          setOrder(response.data);
-          console.log("[OrderDetails] order fetched", response.data.id);
-        } else {
-          throw new Error(response?.message || "Failed to fetch order");
-        }
+        await loadOrder();
       } catch (err: any) {
         console.warn("[OrderDetails] fetch error", err?.message || err);
-        // Fallback to demo data for development
-        const demo = ORDERS.find((o) => o.id === id) ?? ORDERS[0];
+        const demo = ORDERS.find((o) => o.id === idStr) ?? ORDERS[0];
         setOrder(demo);
       } finally {
         setLoading(false);
@@ -63,7 +105,7 @@ export default function OrderDetails() {
     };
 
     fetchOrder();
-  }, [id]);
+  }, [idStr]);
 
   if (loading || !order) {
     return (
@@ -75,50 +117,88 @@ export default function OrderDetails() {
     );
   }
 
-  const tax = +(order.total * 0.08).toFixed(2);
-  const total = +(order.total + tax).toFixed(2);
+  const orderItems = order.order_items ?? order.items ?? [];
+
+  // Calculate subtotal from items in case the API's total is missing or incorrect
+  const calculatedSubtotal = orderItems.reduce(
+    (sum: number, item: any) => sum + (Number(item.unit_price || item.price || 0) * Number(item.quantity || 1)),
+    0
+  );
+  
+  const orderTotal = calculatedSubtotal;
+  const tax = +(orderTotal * 0.08).toFixed(2);
+  const total = +(orderTotal + tax).toFixed(2);
 
   const onReorder = () => {
-    order.items?.forEach((it: any) =>
+    let added = 0;
+    let skipped = 0;
+    let adjusted = 0;
+
+    orderItems.forEach((it: any) => {
+      // simulate availability check (80% available)
+      const available = Math.random() < 0.8;
+      if (!available) {
+        skipped += 1;
+        return;
+      }
+
+      // simulate price adjustment within +/-10%
+      const price = it.unit_price || it.price || 0;
+      const change = (Math.random() * 0.2 - 0.1);
+      const newPrice = Math.round((price * (1 + change)) * 100) / 100;
+
       addItem({
         id: `${it.id}-r`,
         title: it.product_name || it.title,
-        price: it.unit_price || it.price,
+        price: newPrice,
         subtitle: "",
         image: it.images_urls?.[0] || it.image,
-        raw: it,
+        raw: {
+          ...it,
+          listing_id: it.listing_id || it.source_id,
+          aggregator_id: it.ordered_to_id,
+        },
         product_id: it.product_id,
         unit_id: it.unit_id,
-        listing_id: it.listing_id,
+        listing_id: it.listing_id || it.source_id,
         ordered_to_id: it.ordered_to_id,
-      }),
-    );
-    router.push("/cart");
+      });
+
+      if (newPrice !== price) adjusted += 1;
+      added += 1;
+    });
+    
+    setReorderStats({ added, skipped, adjusted });
+    setReorderModalVisible(true);
   };
-
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertTitle, setAlertTitle] = useState("");
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertOnClose, setAlertOnClose] = useState<(() => void) | null>(null);
-
   const confirmOrder = async () => {
     try {
       setIsConfirming(true);
       console.log("[OrderDetails] confirming order", order.id);
-      const response = await marketRetailerConfirmOrder(order.id, { confirmed: true });
-      
-      if (response?.success && response?.data) {
-        setOrder(response.data);
-        setAlertTitle("Order confirmed");
-        setAlertMessage(`Order ${order.id} has been confirmed.`);
-        setAlertOnClose(() => () => setAlertVisible(false));
-        setAlertVisible(true);
-        console.log("[OrderDetails] order confirmed successfully", order.id);
-      } else {
-        throw new Error(response?.message || "Failed to confirm order");
+
+      const ids = String(order.id).split(",").map((i) => i.trim());
+      const responses = await Promise.all(
+        ids.map((id) => marketRetailerConfirmOrder(id, { confirmed: true }))
+      );
+
+      const failed = responses.find((response) => !response?.success);
+      if (failed) {
+        throw new Error(failed?.message || "Failed to confirm order");
       }
+
+      const refreshedOrder = await loadOrder();
+      const updatedStatus =
+        refreshedOrder?.status || responses[0]?.data?.status || "confirmed";
+
+      setOrder((prev: any) => ({ ...prev, status: updatedStatus }));
+      setAlertTitle("Order confirmed");
+      setAlertMessage(`Order ${order.id} has been confirmed.`);
+      setAlertOnClose(() => () => {
+        setAlertVisible(false);
+        router.push("/orders");
+      });
+      setAlertVisible(true);
+      console.log("[OrderDetails] order confirmed successfully", order.id, updatedStatus);
     } catch (err: any) {
       console.warn("[OrderDetails] confirm error", err?.message || err);
       setAlertTitle("Confirmation Failed");
@@ -142,23 +222,38 @@ export default function OrderDetails() {
     try {
       setIsCancelling(true);
       console.log("[OrderDetails] cancelling order", order.id, cancelReason);
-      const response = await marketCancelOrder(order.id, cancelReason);
+      
+      const ids = String(order.id).split(",").map((i) => i.trim());
+      const useRetailerConfirm = shouldUseRetailerConfirmEndpoint(order.status);
 
-      if (response?.success && response?.data) {
-        setOrder(response.data);
-        setShowCancelModal(false);
-        setCancelReason("");
-        setAlertTitle("Order cancelled");
-        setAlertMessage(`Order ${order.id} was cancelled.`);
-        setAlertOnClose(() => () => {
-          setAlertVisible(false);
-          router.push("/orders");
-        });
-        setAlertVisible(true);
-        console.log("[OrderDetails] order cancelled successfully", order.id);
-      } else {
-        throw new Error(response?.message || "Failed to cancel order");
+      const responses = await Promise.all(
+        ids.map((id) =>
+          useRetailerConfirm
+            ? marketRetailerConfirmOrder(id, { confirmed: false, reason: cancelReason })
+            : marketCancelOrder(id, cancelReason)
+        )
+      );
+
+      const failed = responses.find((response) => !response?.success);
+      if (failed) {
+        throw new Error(failed?.message || "Failed to cancel order");
       }
+
+      const refreshedOrder = await loadOrder();
+      const updatedStatus =
+        refreshedOrder?.status || responses[0]?.data?.status || "cancelled";
+
+      setOrder((prev: any) => ({ ...prev, status: updatedStatus }));
+      setShowCancelModal(false);
+      setCancelReason("");
+      setAlertTitle("Order cancelled");
+      setAlertMessage(`Order ${order.id} was cancelled.`);
+      setAlertOnClose(() => () => {
+        setAlertVisible(false);
+        router.push("/orders");
+      });
+      setAlertVisible(true);
+      console.log("[OrderDetails] order cancelled successfully", order.id);
     } catch (err: any) {
       console.warn("[OrderDetails] cancel error", err?.message || err);
       setAlertTitle("Cancellation Failed");
@@ -172,68 +267,83 @@ export default function OrderDetails() {
 
   return (
     <PageShell showBackButton>
-      <View style={styles.orderHeaderRow}>
+      <View style={[styles.orderHeaderRow, { width: '100%', paddingRight: 40, marginTop: -20 }]}>
         <View style={styles.orderIdWrap}>
           <MaterialIcons name="receipt" size={16} color="#8a1d1d" />
         </View>
-        <ThemedText type="defaultSemiBold2" style={styles.orderIdText} numberOfLines={1} ellipsizeMode="tail">
-          {order.id}
+        <ThemedText type="defaultSemiBold" style={styles.orderIdText} numberOfLines={1} ellipsizeMode="tail">
+          {String(order.id).includes(",") ? `Orders ${order.id}` : `Order #${order.id}`}
         </ThemedText>
       </View>
 
-      <View style={styles.statusRow}>
+      <View style={styles.statusSection}>
         <StatusBadge status={order.status} />
-        <ThemedText
-          type="default"
-          lightColor="#6b6b6b"
-          style={{ marginLeft: 12 }}
-        >
-          {new Date(order.created_at).toLocaleDateString()}
-        </ThemedText>
+
+        <View style={styles.statusMetaRow}>
+          <ThemedText type="default" lightColor="#6b6b6b" style={styles.orderDate}>
+            {new Date(order.created_at).toLocaleDateString()}
+          </ThemedText>
+
+          {(order.expected_delivery_date || isAwaitingRetailerConfirmation(order.status)) && (
+            <View style={styles.deliveryBlock}>
+              <ThemedText type="default" style={styles.deliveryLabel}>
+                Expected Delivery
+              </ThemedText>
+              <ThemedText type="defaultSemiBold" style={styles.deliveryValue}>
+                {order.expected_delivery_date
+                  ? new Date(order.expected_delivery_date).toLocaleDateString()
+                  : "TBD upon confirmation"}
+              </ThemedText>
+            </View>
+          )}
+        </View>
       </View>
 
       <FlatList
-        data={order.items}
-        keyExtractor={(i) => i.id}
+        data={orderItems}
+        keyExtractor={(i, index) => String(i.id || index)}
         style={{ marginTop: 12 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         renderItem={({ item }) => (
           <OrderItem
             id={item.id}
-            title={item.product_name || item.title}
-            price={item.unit_price || item.price}
-            quantity={item.quantity}
+            title={item.product_name || item.title || "Unknown Product"}
+            price={item.unit_price || item.price || 0}
+            quantity={item.quantity || 1}
             image={item.images_urls?.[0] || item.image}
           />
         )}
         ListFooterComponent={() => (
           <View>
             <OrderSummary
-              subtotal={order.total}
+              subtotal={orderTotal}
               tax={tax}
               total={total}
               showShipping={false}
             />
 
-            {order.status && order.status.toString().toLowerCase().includes("waiting_retailer") && (
-              <View style={{ flexDirection: "row", marginTop: 12 }}>
+            {isAwaitingRetailerConfirmation(order.status) && (
+              <View style={{ flexDirection: "row", marginTop: 16, justifyContent: "space-between" }}>
                 <TouchableOpacity
-                  style={[styles.reorderBtn, { flex: 1, marginRight: 8, backgroundColor: "#0b67c2", opacity: isConfirming ? 0.6 : 1 }]}
+                  style={[styles.actionBtn, { flex: 1, marginRight: 6, backgroundColor: "#1f7a39", opacity: isConfirming ? 0.6 : 1 }]}
                   onPress={confirmOrder}
                   disabled={isConfirming}
                 >
-                  <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
+                  <MaterialIcons name="check-circle" size={16} color="#fff" style={{ marginRight: 6 }} />
+                  <ThemedText type="defaultSemiBold" style={{ color: "#fff", fontSize: 13 }}>
                     {isConfirming ? "Confirming..." : "Confirm Order"}
                   </ThemedText>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.reorderBtn, { flex: 1, marginLeft: 8, backgroundColor: "#8a1d1d", opacity: isCancelling ? 0.6 : 1 }]}
+                  style={[styles.actionBtn, styles.cancelBtnOutline, { flex: 1, marginLeft: 6, opacity: isCancelling ? 0.6 : 1 }]}
                   onPress={() => setShowCancelModal(true)}
                   disabled={isCancelling}
                 >
-                  <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
+                  <MaterialIcons name="cancel" size={16} color="#8a1d1d" style={{ marginRight: 6 }} />
+                  <ThemedText type="defaultSemiBold" style={{ color: "#8a1d1d", fontSize: 13 }}>
                     Cancel Order
                   </ThemedText>
                 </TouchableOpacity>
@@ -301,10 +411,24 @@ export default function OrderDetails() {
           visible={alertVisible}
           title={alertTitle}
           message={alertMessage}
+          okLabel="OK"
           okColor="#0b67c2"
+          icon="check-circle"
+          iconColor="#0b67c2"
           onClose={() => {
             if (alertOnClose) alertOnClose();
             setAlertVisible(false);
+          }}
+        />
+        <ReorderSummaryModal
+          visible={reorderModalVisible}
+          added={reorderStats.added}
+          skipped={reorderStats.skipped}
+          adjusted={reorderStats.adjusted}
+          onClose={() => setReorderModalVisible(false)}
+          onViewCart={() => {
+            setReorderModalVisible(false);
+            router.push("/cart");
           }}
         />
     </PageShell>
@@ -329,7 +453,17 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0,0,0,0.06)",
   },
   headerTitle: { fontSize: 18 },
-  statusRow: { flexDirection: "row", alignItems: "center", marginTop: 12 },
+  statusSection: { marginTop: 12, gap: 8 },
+  statusMetaRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  orderDate: { flex: 1 },
+  deliveryBlock: { flexShrink: 0, alignItems: "flex-end" },
+  deliveryLabel: { fontSize: 11, color: "#6b6b6b" },
+  deliveryValue: { fontSize: 13, color: "#333", textAlign: "right" },
   reorderBtn: {
     marginTop: 12,
     backgroundColor: "#8a1d1d",
@@ -339,6 +473,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
+  },
+  actionBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  cancelBtnOutline: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#8a1d1d",
   },
   modalOverlay: {
     flex: 1,
@@ -364,7 +511,7 @@ const styles = StyleSheet.create({
   },
   modalButtons: { flexDirection: "row", justifyContent: "flex-end", marginTop: 12 },
   modalBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 8, marginLeft: 8 },
-  orderHeaderRow: { flexDirection: "row", alignItems: "center", marginTop: 6 },
+  orderHeaderRow: { flexDirection: "row", alignItems: "center" },
   orderIdWrap: {
     width: 36,
     height: 36,
@@ -379,5 +526,5 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  orderIdText: { marginLeft: 12 },
+  orderIdText: { marginLeft: 12, flexShrink: 1, fontSize: 18 },
 });

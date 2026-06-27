@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, View } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ThemedText } from "@/components/themed-text";
+import { normalizeOrderStatus } from "@/lib/order-status";
 
 interface StatusBadgeProps {
   status: string;
@@ -11,16 +12,28 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, showIcon = true, compact = false }: StatusBadgeProps) {
   const getStatusConfig = (status: string) => {
-    switch (status.toUpperCase()) {
+    const s = normalizeOrderStatus(status).toUpperCase();
+    switch (s) {
       case "DELIVERED":
+      case "COMPLETED":
         return {
+          label: "DELIVERED",
           backgroundColor: "#e9f7ec",
           textColor: "#1f7a39",
           icon: "check",
           iconColor: "#28a745",
         };
+      case "CONFIRMED":
+        return {
+          label: "CONFIRMED",
+          backgroundColor: "#e9f7ec",
+          textColor: "#1f7a39",
+          icon: "check-circle",
+          iconColor: "#28a745",
+        };
       case "SHIPPED":
         return {
+          label: "SHIPPED",
           backgroundColor: "#eaf5ff",
           textColor: "#0b67c2",
           icon: "local-shipping",
@@ -28,13 +41,34 @@ export function StatusBadge({ status, showIcon = true, compact = false }: Status
         };
       case "PROCESSING":
         return {
+          label: "PROCESSING",
           backgroundColor: "#fff4ea",
           textColor: "#ff7a00",
           icon: "autorenew",
           iconColor: "#ff7a00",
         };
+      case "PENDING":
+      case "WAITING_RETAILER":
+      case "WAITING_RETAILER_CONFIRMATION":
+        return {
+          label: "WAITING CONFIRMATION",
+          backgroundColor: "#f4f6fb",
+          textColor: "#0b67c2",
+          icon: "schedule",
+          iconColor: "#0b67c2",
+        };
+      case "CANCELLED":
+      case "CANCELED":
+        return {
+          label: "CANCELLED",
+          backgroundColor: "#fdecea",
+          textColor: "#c62828",
+          icon: "cancel",
+          iconColor: "#c62828",
+        };
       default:
         return {
+          label: s,
           backgroundColor: "#f0f0f0",
           textColor: "#666",
           icon: null,
@@ -55,8 +89,10 @@ export function StatusBadge({ status, showIcon = true, compact = false }: Status
       <ThemedText
         type="default"
         style={[styles.statusText, { color: config.textColor }, compact && styles.compactText]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
       >
-        {status}
+        {config.label}
       </ThemedText>
     </View>
   );
@@ -69,8 +105,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
-    minWidth: 80,
     justifyContent: "center",
+    alignSelf: "flex-start",
   },
   compact: {
     paddingHorizontal: 8,

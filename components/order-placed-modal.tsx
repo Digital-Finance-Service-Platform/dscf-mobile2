@@ -25,21 +25,21 @@ export default function OrderPlacedModal({ visible, order, onClose, onViewOrder 
           </ThemedText>
 
           <ThemedText type="default" style={styles.message}>
-            Order {order.id} created successfully.
+            {String(order.id).includes(",") ? `Orders ${order.id} created successfully.` : `Order ${order.id} created successfully.`}
           </ThemedText>
 
           <View style={styles.metaRow}>
             <ThemedText type="default" lightColor="#6b6b6b">
               Total
             </ThemedText>
-            <ThemedText type="defaultSemiBold">{formatCurrency(order.total)}</ThemedText>
+            <ThemedText type="defaultSemiBold">{formatCurrency(order.total_amount ?? order.total)}</ThemedText>
           </View>
 
           <View style={styles.metaRow}>
             <ThemedText type="default" lightColor="#6b6b6b">
               Expected
             </ThemedText>
-            <ThemedText type="defaultSemiBold">{order.expected_delivery ?? order.date}</ThemedText>
+            <ThemedText type="defaultSemiBold">{order.expected_delivery ?? new Date(order.created_at || order.date || Date.now()).toLocaleDateString()}</ThemedText>
           </View>
 
           <View style={styles.buttons}>
