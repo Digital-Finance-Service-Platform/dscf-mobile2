@@ -102,7 +102,8 @@ export default function CartScreen() {
 
       const firstItem: any = items[0];
       const listingId = getRawListingId(firstItem);
-      const isDirectListing = items.length === 1 && isDirectListingItem(firstItem);
+      const isDirectListing =
+        items.length === 1 && isDirectListingItem(firstItem);
 
       console.log("[Cart] firstItem metadata", {
         firstItem,
@@ -125,52 +126,72 @@ export default function CartScreen() {
       // so we must create a separate order for each item in the cart.
       for (const item of items) {
         const itemListingId = getRawListingId(item);
-        const isAggregator = item.raw?.aggregator_id !== undefined || item.raw?.aggregator !== undefined || item.raw?.source_type === "Dscf::Marketplace::AggregatorListing";
-        
+        const isAggregator =
+          item.raw?.aggregator_id !== undefined ||
+          item.raw?.aggregator !== undefined ||
+          item.raw?.source_type === "Dscf::Marketplace::AggregatorListing";
+
         let orderRecipientId = getOrderRecipientId(item);
         if (isAggregator && !orderRecipientId) {
-          orderRecipientId = item.raw?.aggregator_id ?? item.raw?.aggregator?.id ?? 1;
+          orderRecipientId =
+            item.raw?.aggregator_id ?? item.raw?.aggregator?.id ?? 1;
         }
 
-        const orderPayload: any = isAggregator 
+        const orderPayload: any = isAggregator
           ? {
               ...orderBase,
               listing_id: parseInt(String(itemListingId)) || itemListingId,
               order_type: "direct_listing",
-              ordered_to_id: parseInt(String(orderRecipientId)) || orderRecipientId,
-              order_items_attributes: [{
-                quantity: item.quantity ?? item.raw?.quantity ?? 1,
-                source_id: parseInt(String(itemListingId)) || itemListingId,
-                source_type: "Dscf::Marketplace::AggregatorListing"
-              }]
+              ordered_to_id:
+                parseInt(String(orderRecipientId)) || orderRecipientId,
+              order_items_attributes: [
+                {
+                  quantity: item.quantity ?? item.raw?.quantity ?? 1,
+                  source_id: parseInt(String(itemListingId)) || itemListingId,
+                  source_type: "Dscf::Marketplace::AggregatorListing",
+                },
+              ],
             }
           : {
               ...orderBase,
               listing_id: parseInt(String(itemListingId)) || itemListingId,
-              ordered_to_id: parseInt(String(orderRecipientId)) || orderRecipientId,
+              ordered_to_id:
+                parseInt(String(orderRecipientId)) || orderRecipientId,
               order_type: "direct_listing",
-              order_items_attributes: [{
-                quantity: item.quantity ?? item.raw?.quantity ?? 1,
-              }],
+              order_items_attributes: [
+                {
+                  quantity: item.quantity ?? item.raw?.quantity ?? 1,
+                },
+              ],
             };
 
-        console.log(`[Cart] orderPayload for item ${item.title}`, JSON.stringify(orderPayload, null, 2));
+        console.log(
+          `[Cart] orderPayload for item ${item.title}`,
+          JSON.stringify(orderPayload, null, 2),
+        );
         const response = await marketCreateOrder(orderPayload);
 
         if (response?.success && response?.data) {
           createdOrders.push(response.data);
         } else {
-          throw new Error(response?.errors || response?.error || response?.message || "Failed to create order");
+          throw new Error(
+            response?.errors ||
+              response?.error ||
+              response?.message ||
+              "Failed to create order",
+          );
         }
       }
 
       console.log(`[Cart] Successfully created ${createdOrders.length} orders`);
 
       const combinedOrder = {
-        id: createdOrders.map(o => o.id).join(","),
+        id: createdOrders.map((o) => o.id).join(","),
         total_amount: total,
-        expected_delivery: createdOrders[0]?.expected_delivery || new Date().toLocaleDateString(),
-        created_at: createdOrders[0]?.created_at || new Date().toISOString()
+        expected_delivery:
+          createdOrders[0]?.expected_delivery ||
+          new Date().toLocaleDateString(),
+        created_at: createdOrders[0]?.created_at || new Date().toISOString(),
       };
 
       // Clear cart after successful order creation
@@ -230,11 +251,11 @@ export default function CartScreen() {
 
                 <TouchableOpacity
                   style={styles.checkoutBtn}
-                  accessibilityLabel="Proceed to Checkout"
-                  onPress={() => router.push("/checkout")}
+                  accessibilityLabel="Place Order"
+                  onPress={placeOrder}
                 >
                   <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
-                    Proceed to Checkout
+                    Order Now
                   </ThemedText>
                 </TouchableOpacity>
               </View>
@@ -242,8 +263,6 @@ export default function CartScreen() {
           />
         )}
       </PageShell>
-<<<<<<< HEAD
-=======
 
       <OrderPlacedModal
         visible={showPlacedModal}
@@ -266,7 +285,6 @@ export default function CartScreen() {
         okColor="#8a1d1d"
         onClose={() => setAlertVisible(false)}
       />
->>>>>>> fbe51a4 (second update)
     </>
   );
 }
