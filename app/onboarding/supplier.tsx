@@ -308,7 +308,7 @@ export default function OnboardingSupplierScreen() {
           <View style={styles.infoRow}>
             <MaterialIcons name="check-circle" size={18} color="#2e7d32" />
             <ThemedText type="default" style={styles.infoText}>
-              Location selected
+              Location selected: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}
             </ThemedText>
           </View>
         ) : null}
