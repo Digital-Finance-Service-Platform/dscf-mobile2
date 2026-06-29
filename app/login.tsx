@@ -195,7 +195,7 @@ export default function LoginScreen() {
 
             <View style={styles.footerRow}>
               <Text style={styles.footerText}>Don't have an Account? </Text>
-              <Pressable onPress={() => router.push("/signup")}>
+              <Pressable onPress={() => router.push("/welcome")}>
                 <Text style={styles.signupLink}>Sign up</Text>
               </Pressable>
             </View>

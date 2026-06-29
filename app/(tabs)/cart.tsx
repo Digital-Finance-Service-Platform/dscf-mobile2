@@ -242,8 +242,6 @@ export default function CartScreen() {
           />
         )}
       </PageShell>
-<<<<<<< HEAD
-=======
 
       <OrderPlacedModal
         visible={showPlacedModal}
@@ -266,7 +264,6 @@ export default function CartScreen() {
         okColor="#8a1d1d"
         onClose={() => setAlertVisible(false)}
       />
->>>>>>> fbe51a4 (second update)
     </>
   );
 }
