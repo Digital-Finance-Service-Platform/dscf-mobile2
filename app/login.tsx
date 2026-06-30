@@ -42,17 +42,27 @@ export default function LoginScreen() {
       // Check review_status from login response (per mobile-integration-agent-retailer.md)
       const reviewStatus = loginResult?.data?.user?.review_status;
 
-      // Detect user role from response
+      // Detect user role from response (roles only)
       const roles = loginResult?.data?.user?.roles ?? [];
-      const permissions = loginResult?.data?.user?.permissions ?? [];
       
-      const isSupplier = reviewStatus?.type === "supplier" || 
-        roles.some((r: any) => r?.code?.toUpperCase() === "SUPPLIER" || r?.name?.toUpperCase() === "SUPPLIER") ||
-        permissions.some((p: string) => p.includes("businesses."));
-      
-      const isRetailer = roles.some((r: any) => 
-        r?.code?.toUpperCase() === "RETAILER" || r?.name?.toUpperCase() === "RETAILER"
-      );
+      const isAgent = roles.some((r: any) => r?.code?.toUpperCase() === "AGENT");
+      const isRetailer = roles.some((r: any) => r?.code?.toUpperCase() === "RETAILER");
+      const isSupplier = roles.some((r: any) => r?.code?.toUpperCase() === "SUPPLIER");
+
+      // Agents go to agent retailers page
+      // Agent role takes priority — agents may have businesses.* permissions but are NOT suppliers
+      if (isAgent) {
+        if (reviewStatus && (reviewStatus.status === "pending" || reviewStatus.status === "under_review")) {
+          router.replace({
+            pathname: "/onboarding/pending-approval" as any,
+            params: { role: "agent", status: reviewStatus.status },
+          });
+        } else {
+          // Verified agents go to agent retailers page
+          router.replace("/agent/retailers");
+        }
+        return;
+      }
 
       // Suppliers go to supplier dashboard
       if (isSupplier && !isRetailer) {
@@ -71,7 +81,7 @@ export default function LoginScreen() {
       if (reviewStatus && !isRetailer) {
         const status = reviewStatus.status;
         if (status === "pending" || status === "under_review") {
-          // User's marketplace account is pending review (agent only)
+          // User's marketplace account is pending review
           const reviewType = reviewStatus.type || "user";
           router.replace({
             pathname: "/onboarding/pending-approval" as any,

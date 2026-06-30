@@ -54,6 +54,7 @@ export default function OrderDetails() {
 
   const [reorderStats, setReorderStats] = useState({ added: 0, skipped: 0, adjusted: 0 });
   const [reorderModalVisible, setReorderModalVisible] = useState(false);
+  const [waitingForSupplier, setWaitingForSupplier] = useState(false);
 
   const loadOrder = async () => {
     console.log("[OrderDetails] fetching order", idStr);
@@ -106,6 +107,22 @@ export default function OrderDetails() {
 
     fetchOrder();
   }, [idStr]);
+
+  // Proactively check if order is waiting for supplier confirmation
+  useEffect(() => {
+    if (!order || !isAwaitingRetailerConfirmation(order.status)) {
+      setWaitingForSupplier(false);
+      return;
+    }
+
+    const items = order.order_items || order.items || [];
+    const hasPendingItems = items.some((item: any) => {
+      const status = String(item.status || "").toLowerCase();
+      return status === "pending" || status === "processing";
+    });
+
+    setWaitingForSupplier(hasPendingItems);
+  }, [order]);
 
   if (loading || !order) {
     return (
@@ -325,28 +342,46 @@ export default function OrderDetails() {
             />
 
             {isAwaitingRetailerConfirmation(order.status) && (
-              <View style={{ flexDirection: "row", marginTop: 16, justifyContent: "space-between" }}>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { flex: 1, marginRight: 6, backgroundColor: "#1f7a39", opacity: isConfirming ? 0.6 : 1 }]}
-                  onPress={confirmOrder}
-                  disabled={isConfirming}
-                >
-                  <MaterialIcons name="check-circle" size={16} color="#fff" style={{ marginRight: 6 }} />
-                  <ThemedText type="defaultSemiBold" style={{ color: "#fff", fontSize: 13 }}>
-                    {isConfirming ? "Confirming..." : "Confirm Order"}
-                  </ThemedText>
-                </TouchableOpacity>
+              <View style={{ marginTop: 16 }}>
+                {waitingForSupplier && (
+                  <View style={styles.waitingForSupplierBanner}>
+                    <MaterialIcons name="hourglass-empty" size={18} color="#ff7a00" />
+                    <ThemedText type="default" style={styles.waitingForSupplierText}>
+                      Waiting for supplier confirmation
+                    </ThemedText>
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.actionBtn,
+                      {
+                        flex: 1,
+                        marginRight: 6,
+                        backgroundColor: "#1f7a39",
+                        opacity: isConfirming || waitingForSupplier ? 0.6 : 1,
+                      },
+                    ]}
+                    onPress={confirmOrder}
+                    disabled={isConfirming || waitingForSupplier}
+                  >
+                    <MaterialIcons name="check-circle" size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <ThemedText type="defaultSemiBold" style={{ color: "#fff", fontSize: 13 }}>
+                      {isConfirming ? "Confirming..." : waitingForSupplier ? "Waiting..." : "Confirm Order"}
+                    </ThemedText>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.cancelBtnOutline, { flex: 1, marginLeft: 6, opacity: isCancelling ? 0.6 : 1 }]}
-                  onPress={() => setShowCancelModal(true)}
-                  disabled={isCancelling}
-                >
-                  <MaterialIcons name="cancel" size={16} color="#8a1d1d" style={{ marginRight: 6 }} />
-                  <ThemedText type="defaultSemiBold" style={{ color: "#8a1d1d", fontSize: 13 }}>
-                    Cancel Order
-                  </ThemedText>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.cancelBtnOutline, { flex: 1, marginLeft: 6, opacity: isCancelling ? 0.6 : 1 }]}
+                    onPress={() => setShowCancelModal(true)}
+                    disabled={isCancelling}
+                  >
+                    <MaterialIcons name="cancel" size={16} color="#8a1d1d" style={{ marginRight: 6 }} />
+                    <ThemedText type="defaultSemiBold" style={{ color: "#8a1d1d", fontSize: 13 }}>
+                      Cancel Order
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
@@ -527,4 +562,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   orderIdText: { marginLeft: 12, flexShrink: 1, fontSize: 18 },
+  waitingForSupplierBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff4ea",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#ff7a00",
+  },
+  waitingForSupplierText: {
+    marginLeft: 8,
+    color: "#ff7a00",
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });

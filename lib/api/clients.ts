@@ -208,7 +208,7 @@ export async function marketFetch(
           },
         );
       } catch (e) {}
-      const msg = json?.message || json?.error || `Request failed (status ${res.status})`;
+      const msg = json?.message || json?.error || json?.errors || `Request failed (status ${res.status})`;
       throw new Error(msg);
     }
     return json;
@@ -441,10 +441,10 @@ export async function coreFetch(
   }
 }
 
-export async function faydaVerify(faydaNumber: string): Promise<any> {
+export async function faydaVerify(faydaNumber: string, otp: string): Promise<any> {
   return coreFetch("/fayda/verify", {
     method: "POST",
-    body: JSON.stringify({ fayda_number: faydaNumber }),
+    body: JSON.stringify({ fayda_number: faydaNumber, otp }),
   });
 }
 
@@ -541,7 +541,7 @@ export async function coreUpdateAddress(
   payload: Record<string, any>,
 ): Promise<any> {
   return coreFetch(`/addresses/${id}`, {
-    method: "PUT",
+    method: "PATCH",
     body: JSON.stringify({ address: payload }),
   });
 }
@@ -645,6 +645,10 @@ export async function marketGetProductInclusionRequests(): Promise<any> {
 export async function marketGetMyRetailers(agentId?: number | string): Promise<any> {
   const qs = agentId ? `?agent_id=${agentId}` : "";
   return marketFetch(`/retailers/my_retailers${qs}`, { method: "GET" });
+}
+
+export async function marketGetRetailer(id: number | string): Promise<any> {
+  return marketFetch(`/retailers/${id}`, { method: "GET" });
 }
 
 // ─── Registration Endpoints ──────────────────────────────────────────────────

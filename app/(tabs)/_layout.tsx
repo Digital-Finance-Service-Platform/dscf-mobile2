@@ -154,6 +154,7 @@ function AppHeader() {
         <TouchableOpacity
           accessibilityLabel="Open cart"
           style={[layoutStyles.headerIconWrap, { marginLeft: -6 }]}
+          onPress={() => router.push("/(tabs)/cart")}
         >
           <IconSymbol name="cart" size={28} color={iconColor} />
           {count > 0 && (

@@ -22,7 +22,7 @@ export type ValidationStatus =
 
 export type OrderType = "rfq_based" | "direct_listing";
 export type FulfillmentType = "delivery" | "self_pickup";
-export type PaymentMethod = "cash" | "credit" | "transfer";
+export type PaymentMethod = "cash" | "credit" | "bank_transfer";
 
 export interface OrderItem {
   id: number;
