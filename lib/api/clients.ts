@@ -500,7 +500,7 @@ export async function marketGetUnits(): Promise<any> {
 // ─── Aggregator Feed ─────────────────────────────────────────────────────────
 
 export async function marketGetAggregatorListings(): Promise<any> {
-  return marketFetch("/aggregator_listings", { method: "GET" });
+  return marketFetch("/aggregator_listings/feed", { method: "GET" });
 }
 
 // ─── Business Management ─────────────────────────────────────────────────────

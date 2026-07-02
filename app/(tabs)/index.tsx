@@ -24,6 +24,7 @@ import { formatCurrency } from "@/lib/formatters";
 function mapApiListingToCard(listing: any) {
   const product = listing?.product ?? listing?.supplier_product?.product ?? {};
   const thumbnail =
+    listing?.thumbnail_url ??
     listing?.supplier_product?.product?.thumbnail_url ??
     product?.thumbnail_url ??
     null;

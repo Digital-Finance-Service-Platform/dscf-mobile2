@@ -106,7 +106,7 @@ export default function OrdersScreen() {
   const FILTERS = [
     { key: "ALL", label: "All Orders" },
     { key: "PENDING", label: "Pending" },
-    { key: "PROCESSING", label: "Processing" },
+    { key: "CONFIRMED", label: "Confirmed" },
     { key: "SHIPPED", label: "Shipped" },
     { key: "DELIVERED", label: "Delivered" },
     { key: "CANCELLED", label: "Cancelled" },
@@ -313,7 +313,7 @@ export default function OrdersScreen() {
                     <ThemedText type="default">Details</ThemedText>
                   </TouchableOpacity>
 
-                  {item.status === "PROCESSING" ? (
+                  {item.status === "CONFIRMED" ? (
                     <TouchableOpacity
                       style={[styles.detailsBtn, { marginLeft: 8 }]}
                       onPress={() => onTrack(item)}
