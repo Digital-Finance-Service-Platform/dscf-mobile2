@@ -1,24 +1,23 @@
-import React, { useState, useMemo, useEffect } from "react";
+import { useCart } from "@/components/cart-context";
+import { FilterChips } from "@/components/filter-chips";
+import { PageShell } from "@/components/page-shell";
+import ReorderSummaryModal from "@/components/reorder-summary-modal";
+import { StatusBadge } from "@/components/status-badge";
+import { ThemedText } from "@/components/themed-text";
+import { marketGetMyOrders } from "@/lib/api/clients";
+import { formatCurrency } from "@/lib/formatters";
+import { normalizeOrderStatus } from "@/lib/order-status";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  FlatList,
-  TouchableOpacity,
-  Image as RNImage,
+    FlatList,
+    Image as RNImage,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { ThemedText } from "@/components/themed-text";
-import { FilterChips } from "@/components/filter-chips";
-import { StatusBadge } from "@/components/status-badge";
-import { PageShell } from "@/components/page-shell";
-import { useCart } from "@/components/cart-context";
-import { useRouter, useFocusEffect } from "expo-router";
-import { ORDERS } from "@/data/orders";
-import { formatCurrency } from "@/lib/formatters";
-import { marketGetMyOrders } from "@/lib/api/clients";
-import ReorderSummaryModal from "@/components/reorder-summary-modal";
-import { normalizeOrderStatus } from "@/lib/order-status";
 
 export const options = { headerShown: false };
 
@@ -32,6 +31,7 @@ export default function OrdersScreen() {
   const [filter, setFilter] = useState<OrderFilter>("ALL");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [reorderStats, setReorderStats] = useState({ added: 0, skipped: 0, adjusted: 0 });
   const [reorderModalVisible, setReorderModalVisible] = useState(false);
@@ -92,8 +92,8 @@ export default function OrdersScreen() {
           }
         } catch (err: any) {
           console.warn("[OrdersScreen] fetch error", err?.message || err);
-          // Fallback to demo data for development
-          setOrders(ORDERS);
+          setError(err?.message || "Failed to load orders. Please try again.");
+          setOrders([]);
         } finally {
           setLoading(false);
         }
@@ -213,7 +213,7 @@ export default function OrdersScreen() {
           <View style={{ alignItems: "center", marginTop: 40 }}>
             <MaterialIcons name="inbox" size={48} color="#ccc" />
             <ThemedText type="default" lightColor="#999" style={{ marginTop: 12 }}>
-              {loading ? "Loading orders..." : "No orders yet"}
+              {loading ? "Loading orders..." : error ? error : "No orders yet"}
             </ThemedText>
           </View>
         }
@@ -227,7 +227,6 @@ export default function OrdersScreen() {
             0
           );
           const orderTotal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(item.total_amount ?? item.total);
-          const totalWithTax = +(orderTotal * 1.08).toFixed(2);
 
           return (
             <View style={styles.orderCard}>
@@ -301,7 +300,7 @@ export default function OrdersScreen() {
                     type="title"
                     style={{ marginTop: 6, fontSize: 18, color: "#800000" }}
                   >
-                    {formatCurrency(totalWithTax)}
+                    {formatCurrency(orderTotal)}
                   </ThemedText>
                 </View>
 

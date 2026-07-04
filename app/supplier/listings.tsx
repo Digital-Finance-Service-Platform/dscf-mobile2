@@ -272,8 +272,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  listingTitleWrap: { flex: 1, gap: 8 },
+  listingTitleWrap: { flex: 1, gap: 6 },
   productName: { color: supplierTheme.primary, fontSize: 16 },
+  businessName: { color: supplierTheme.textMuted, fontSize: 12, marginTop: 2 },
+  badgesRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" },
   statusBadge: {
     alignSelf: "flex-start",
     paddingHorizontal: 10,

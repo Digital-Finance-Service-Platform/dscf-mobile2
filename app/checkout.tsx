@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from "react";
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
-import { useRouter } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
+import { useCart } from "@/components/cart-context";
+import { OrderSummary } from "@/components/order-summary";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
-import { OrderSummary } from "@/components/order-summary";
-import { useCart } from "@/components/cart-context";
+import { coreCreateAddress, coreGetAddresses, coreUpdateAddress } from "@/lib/api/clients";
 import { useSdk } from "@/lib/sdk/context";
-import { coreGetAddresses, coreCreateAddress, coreUpdateAddress } from "@/lib/api/clients";
 
 export const options = { headerShown: false };
 
@@ -25,8 +25,7 @@ export default function CheckoutScreen() {
   const { subtotal } = useCart();
   const { user } = useSdk();
 
-  const tax = +(subtotal * 0.08).toFixed(2);
-  const total = +(subtotal + tax).toFixed(2);
+  const total = subtotal;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -138,7 +137,6 @@ export default function CheckoutScreen() {
         <>
           <OrderSummary
             subtotal={subtotal}
-            tax={tax}
             total={total}
             compact={true}
           />

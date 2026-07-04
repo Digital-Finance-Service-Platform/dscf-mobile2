@@ -1,22 +1,22 @@
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  FlatList,
-  TouchableOpacity,
-  Alert,
+    Alert,
+    FlatList,
+    StyleSheet,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { useRouter } from "expo-router";
 
-import { PageShell } from "@/components/page-shell";
-import { ThemedText } from "@/components/themed-text";
-import { CartItem } from "@/components/cart-item";
-import { OrderSummary } from "@/components/order-summary";
-import OrderPlacedModal from "@/components/order-placed-modal";
-import SimpleAlertModal from "@/components/simple-alert-modal";
 import { useCart } from "@/components/cart-context";
-import { useSdk } from "@/lib/sdk/context";
+import { CartItem } from "@/components/cart-item";
+import OrderPlacedModal from "@/components/order-placed-modal";
+import { OrderSummary } from "@/components/order-summary";
+import { PageShell } from "@/components/page-shell";
+import SimpleAlertModal from "@/components/simple-alert-modal";
+import { ThemedText } from "@/components/themed-text";
 import { marketCreateOrder } from "@/lib/api/clients";
+import { useSdk } from "@/lib/sdk/context";
 
 export default function CartScreen() {
   const { items, count, subtotal, updateQuantity, removeItem, clear } =
@@ -35,8 +35,7 @@ export default function CartScreen() {
     } catch (e) {}
   }, [count, subtotal]);
 
-  const tax = +(subtotal * 0.08).toFixed(2);
-  const total = +(subtotal + tax).toFixed(2);
+  const total = subtotal;
 
   const getRawListingId = (item: any) =>
     item.listing_id ??
@@ -247,7 +246,7 @@ export default function CartScreen() {
             )}
             ListFooterComponent={() => (
               <View style={styles.summaryContainer}>
-                <OrderSummary subtotal={subtotal} tax={tax} total={total} />
+                <OrderSummary subtotal={subtotal} total={total} />
 
                 <TouchableOpacity
                   style={styles.checkoutBtn}

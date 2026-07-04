@@ -38,7 +38,7 @@ const CORE_URL =
   process.env.EXPO_PUBLIC_CORE_URL ??
   process.env.NEXT_PUBLIC_CORE_URL ??
   (Constants.expoConfig?.extra as any)?.coreUrl ??
-  `${API_BASE.replace(/\/$/, "")}/core`;
+  API_BASE;
 
 try {
   console.log("[clients] MARKET_URL:", MARKET_URL, "CORE_URL:", CORE_URL);
@@ -208,7 +208,7 @@ export async function marketFetch(
           },
         );
       } catch (e) {}
-      const msg = json?.message || json?.error || json?.errors || `Request failed (status ${res.status})`;
+      const msg = json?.message || json?.error || json?.errors || `Failed to load order history. Please try again.`;
       throw new Error(msg);
     }
     return json;
@@ -548,6 +548,15 @@ export async function coreUpdateAddress(
 
 
 // ─── Supplier Products & Listings ────────────────────────────────────────────
+
+export async function publishSupplierProduct(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/supplier_products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
 
 export async function marketGetMyProducts(): Promise<any> {
   return marketFetch("/supplier_products/my_products", { method: "GET" });

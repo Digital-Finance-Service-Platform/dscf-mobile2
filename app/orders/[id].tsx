@@ -1,33 +1,32 @@
-import React, { useState, useEffect } from "react";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  TextInput,
+    FlatList,
+    Modal,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
-import { PageShell } from "@/components/page-shell";
+import { useCart } from "@/components/cart-context";
 import { OrderItem } from "@/components/order-item";
 import { OrderSummary } from "@/components/order-summary";
+import { PageShell } from "@/components/page-shell";
+import ReorderSummaryModal from "@/components/reorder-summary-modal";
+import SimpleAlertModal from "@/components/simple-alert-modal";
 import { StatusBadge } from "@/components/status-badge";
 import { ThemedText } from "@/components/themed-text";
-import { useCart } from "@/components/cart-context";
-import { ORDERS } from "@/data/orders";
-import SimpleAlertModal from "@/components/simple-alert-modal";
-import ReorderSummaryModal from "@/components/reorder-summary-modal";
 import {
-  marketGetOrder,
-  marketRetailerConfirmOrder,
-  marketCancelOrder,
+    marketCancelOrder,
+    marketGetOrder,
+    marketRetailerConfirmOrder,
 } from "@/lib/api/clients";
 import {
-  isAwaitingRetailerConfirmation,
-  shouldUseRetailerConfirmEndpoint,
+    isAwaitingRetailerConfirmation,
+    shouldUseRetailerConfirmEndpoint,
 } from "@/lib/order-status";
 
 export const options = { headerShown: false };
@@ -42,6 +41,7 @@ export default function OrderDetails() {
 
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -98,8 +98,8 @@ export default function OrderDetails() {
         await loadOrder();
       } catch (err: any) {
         console.warn("[OrderDetails] fetch error", err?.message || err);
-        const demo = ORDERS.find((o) => o.id === idStr) ?? ORDERS[0];
-        setOrder(demo);
+        setError(err?.message || "Failed to load order details. Please try again.");
+        setOrder(null);
       } finally {
         setLoading(false);
       }
@@ -128,7 +128,7 @@ export default function OrderDetails() {
     return (
       <PageShell showBackButton>
         <ThemedText type="default" style={{ marginTop: 20 }}>
-          Loading order details...
+          {loading ? "Loading order details..." : error || "Order not found"}
         </ThemedText>
       </PageShell>
     );
@@ -143,8 +143,7 @@ export default function OrderDetails() {
   );
   
   const orderTotal = calculatedSubtotal;
-  const tax = +(orderTotal * 0.08).toFixed(2);
-  const total = +(orderTotal + tax).toFixed(2);
+  const total = orderTotal;
 
   const onReorder = () => {
     let added = 0;
@@ -336,7 +335,6 @@ export default function OrderDetails() {
           <View>
             <OrderSummary
               subtotal={orderTotal}
-              tax={tax}
               total={total}
               showShipping={false}
             />

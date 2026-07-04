@@ -349,7 +349,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <FlatList
-            data={showFilteredAggregatorListings ? filteredAggregatorListings : aggregatorListings.slice(0, 6)}
+            data={showFilteredAggregatorListings ? filteredAggregatorListings : aggregatorListings}
             keyExtractor={(i) => `agg-${i.id}`}
             numColumns={2}
             columnWrapperStyle={styles.columnWrap}

@@ -15,7 +15,7 @@ import { SupplierCatalogCard } from "@/components/supplier/supplier-catalog-card
 import { SupplierEmptyState } from "@/components/supplier/supplier-empty-state";
 import { ThemedText } from "@/components/themed-text";
 import { useSupplierMenuItems } from "@/hooks/use-supplier-menu";
-import { marketGetProducts, publishSupplierProduct } from "@/lib/api/clients";
+import { marketGetProducts, publishSupplierProduct, coreGetMyBusiness } from "@/lib/api/clients";
 import { supplierTheme } from "@/lib/supplier-theme";
 
 type CatalogProduct = {
@@ -42,10 +42,27 @@ export default function CreateSupplierProductScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [businessId, setBusinessId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchCatalog();
+    fetchBusiness();
   }, []);
+
+  const fetchBusiness = async () => {
+    try {
+      const res = await coreGetMyBusiness();
+      console.log("[CreateProduct] business response:", JSON.stringify(res));
+      const biz = res?.data ?? res;
+      if (biz?.id) {
+        setBusinessId(biz.id);
+      } else if (Array.isArray(biz) && biz[0]?.id) {
+        setBusinessId(biz[0].id);
+      }
+    } catch (err: unknown) {
+      console.warn("[CreateProduct] Failed to fetch business:", err);
+    }
+  };
 
   const fetchCatalog = async () => {
     try {
@@ -88,12 +105,21 @@ export default function CreateSupplierProductScreen() {
     setSubmitting(true);
     setError(null);
 
+    if (!businessId) {
+      setError("Business information not loaded. Please try again.");
+      setSubmitting(false);
+      return;
+    }
+
     try {
       await publishSupplierProduct({
         supplier_product: {
           product_id: selectedProduct.id,
-          price: parsedPrice,
-          quantity: parsedQuantity,
+          supplier_price: parsedPrice,
+          available_quantity: parsedQuantity,
+          minimum_order_quantity: 1,
+          business_id: businessId,
+          status: "active",
         },
       });
       setSuccess(true);

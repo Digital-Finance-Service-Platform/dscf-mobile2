@@ -1,11 +1,10 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { formatCurrency } from "@/lib/formatters";
+import React from "react";
+import { StyleSheet, View } from "react-native";
 
 interface OrderSummaryProps {
   subtotal: number;
-  tax: number;
   total: number;
   showShipping?: boolean;
   shippingText?: string;
@@ -14,7 +13,6 @@ interface OrderSummaryProps {
 
 export function OrderSummary({
   subtotal,
-  tax,
   total,
   showShipping = true,
   shippingText = "Calculated at checkout",
@@ -56,8 +54,6 @@ export function OrderSummary({
       <SummaryRow label="Subtotal" value={formatCurrency(subtotal)} />
 
       {showShipping && <SummaryRow label="Shipping" value={shippingText} />}
-
-      <SummaryRow label="Tax" value={formatCurrency(tax)} />
 
       <SummaryTotal label="Total" value={formatCurrency(total)} />
     </View>
