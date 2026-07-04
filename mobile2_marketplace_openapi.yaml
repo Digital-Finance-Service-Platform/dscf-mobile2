@@ -14,7 +14,28 @@ info:
     ### Authentication
     All non-public endpoints require a JWT bearer token passed in the `Authorization` header:
     `Authorization: Bearer <access_token>`
-  version: 1.0.0
+
+    ### Order Lifecycle (state machine)
+    An order's `status` moves through these states. The aggregator (admin) drives
+    steps 2–5; the **retailer client only acts at step 6**, and a supplier acts at
+    step 5 only for orders allocated to them.
+
+    | # | `status` | Who acts | Meaning |
+    |---|----------|----------|---------|
+    | 1 | `pending` / `validating` | system / aggregator | Order received; items being validated against current listings. |
+    | 2 | `splitting` | aggregator | All items validated; sources being assigned across suppliers. |
+    | 3 | `waiting_supplier_confirmation` | aggregator / supplier | Each allocation is confirmed (or not-confirmed with a reason) per item. |
+    | 4 | `waiting_retailer_confirmation` | **retailer** | Every allocation has responded; the consolidated order awaits the retailer's final confirm. |
+    | 5 | `confirmed` | system | Retailer confirmed; order moves to consolidation/fulfilment. |
+    | 6 | `completed` | system/supplier | Order fulfilled. |
+    | – | `cancelled` | any | Order/allocation rejected. |
+
+    **Retailer client rule:** show the confirm / cancel actions only when
+    `status == waiting_retailer_confirmation`. Use `has_validation_issues` and each
+    `order_items[].status` (`confirmed` / `cancelled`) to show the retailer which
+    lines survived splitting before they confirm. Items that were not-confirmed by a
+    supplier are returned as `cancelled` and excluded from the payable total.
+  version: 1.1.0
 servers:
   - url: https://uat.api.fcgm.pro.et
     description: UAT Sandbox Environment
@@ -566,32 +587,6 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  data:
-                    $ref: '#/components/schemas/Address'
-    delete:
-      summary: Delete Address
-      description: Removes a saved location point from address database.
-      operationId: deleteAddress
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          example: 13
-      responses:
-        '200':
-          description: Address deleted successfully
-          content:
-            application/json:
-              schema:
                 $ref: '#/components/schemas/SuccessResponse'
 
   # ==========================================
@@ -964,8 +959,15 @@ paths:
 
   /marketplace/orders/{id}/retailer_confirm:
     post:
-      summary: Finalize Order Splitting Allocation (Retailer Confirm)
-      description: Executed by the Retailer client to confirm or reject consolidated split supplier sub-contracts before dispatch.
+      summary: Retailer Final Confirmation
+      description: >-
+        The retailer's single final action on an order. Only call this when the order
+        `status == waiting_retailer_confirmation` (every supplier/aggregator allocation has
+        already responded). `confirmed: true` finalizes the order (`status -> confirmed`,
+        moves to consolidation/fulfilment); `confirmed: false` cancels it (`status -> cancelled`)
+        and records the `reason`. Items dropped during splitting arrive as `order_items[]`
+        with `status: cancelled` and are excluded from `total_amount` — surface them so the
+        retailer sees the final basket before confirming.
       operationId: confirmSplitOrder
       security:
         - BearerAuth: []
@@ -1020,7 +1022,15 @@ paths:
   /marketplace/orders/{id}/supplier_confirm:
     post:
       summary: Supplier Accept Sub-Contract Allocation
-      description: Executed by Suppliers/Wholesalers on their mobile portal to approve item splits allocated to them during consolidated orders splitting pipeline.
+      description: >-
+        Order-level confirmation by a supplier for an order placed/allocated to them:
+        `confirmed: true` accepts all of that supplier's pending (`processing`) lines at once,
+        `confirmed: false` rejects them with a `reason`. The order advances to
+        `waiting_retailer_confirmation` once every allocation across all sources has responded.
+
+        Note: per-item supplier self-confirmation of aggregator-split allocations is not yet
+        enabled — for split orders the aggregator currently confirms on the supplier's behalf
+        (see admin `confirm_item`). This endpoint is the supplier-facing path for direct orders.
       operationId: confirmSupplierSubOrder
       security:
         - BearerAuth: []
@@ -1368,9 +1378,37 @@ components:
           example: 240
         status:
           type: string
-          example: pending
+          description: Current lifecycle stage. See "Order Lifecycle" in the API description.
+          enum:
+            - pending
+            - validating
+            - splitting
+            - waiting_supplier_confirmation
+            - waiting_retailer_confirmation
+            - confirmed
+            - processing
+            - completed
+            - cancelled
+          example: waiting_retailer_confirmation
+        order_type:
+          type: string
+          enum: [direct_listing, rfq_based]
+          example: direct_listing
+        fulfillment_type:
+          type: string
+          enum: [delivery, self_pickup]
+          example: self_pickup
+        payment_method:
+          type: string
+          enum: [cash, credit, bank_transfer]
+          example: cash
+        has_validation_issues:
+          type: boolean
+          description: True while any line item has an unresolved validation issue.
+          example: false
         dropoff_address_id:
           type: integer
+          nullable: true
           example: 13
         total_amount:
           type: string
@@ -1385,52 +1423,26 @@ components:
             $ref: '#/components/schemas/OrderItem'
 
     OrderDetail:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 240
-        status:
-          type: string
-          example: pending
-        dropoff_address_id:
-          type: integer
-          example: 13
-        total_amount:
-          type: string
-          example: '3500.00'
-        created_at:
-          type: string
-          format: date-time
-          example: '2026-06-25T14:45:00.000Z'
-        order_items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderItem'
-        split_orders:
-          type: array
-          description: Allocated supplier contracts under splitting order pipelines.
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-                example: 241
-              supplier_id:
-                type: integer
-                example: 2
-              supplier_name:
-                type: string
-                example: Kaffa Growers Co-op
-              status:
-                type: string
-                example: waiting_supplier_confirmation
-              supplier_confirmed:
-                type: boolean
-                nullable: true
-              total_amount:
-                type: string
-                example: '3500.00'
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          description: >-
+            Single consolidated order. There are no separate child "split orders" — each
+            allocation lives on an `order_items[]` entry via its `source_type` / `source_id`
+            and per-item `status`. The retailer confirms the whole consolidated order once.
+          properties:
+            buyer_phone:
+              type: string
+              nullable: true
+              example: '+251934623433'
+            seller_name:
+              type: string
+              description: The aggregator/business the order is placed to.
+              example: Addis Aggregators
+            seller_phone:
+              type: string
+              nullable: true
+              example: '+251911000012'
 
     OrderItem:
       type: object
@@ -1438,18 +1450,74 @@ components:
         id:
           type: integer
           example: 480
+        product_id:
+          type: integer
+          example: 20
+        product_name:
+          type: string
+          example: Yirgacheffe Arabica
+        unit_id:
+          type: integer
+          example: 9
+        unit_name:
+          type: string
+          example: Kilogram
         quantity:
-          type: integer
-          example: 10
-        price:
           type: string
+          example: '10.0'
+        unit_price:
+          type: string
+          description: Agreed unit price for this line (the order's price, not the live listing).
           example: '350.00'
-        source_id:
-          type: integer
-          example: 14
-        source_type:
-          type: string
-          example: Dscf::Marketplace::AggregatorListing
         subtotal:
           type: string
           example: '3500.00'
+        status:
+          type: string
+          description: >-
+            Per-allocation confirmation state. `processing` = awaiting supplier/aggregator
+            confirmation; `confirmed` = accepted; `cancelled` = not-confirmed and dropped
+            from the order.
+          enum: [pending, confirmed, processing, fulfilled, cancelled]
+          example: confirmed
+        validation_status:
+          type: string
+          description: >-
+            Result of order validation against the current listing. The aggregator resolves
+            any non-`validated` value before splitting.
+          enum: [validated, no_longer_listed, price_changed, low_quantity]
+          example: validated
+        validation_note:
+          type: string
+          nullable: true
+          description: 'Human-readable detail for a validation issue, e.g. Price changed (listed: 500.0).'
+          example: 'Price changed (listed: 500.0)'
+        resolved_unit_price:
+          type: string
+          nullable: true
+          description: Unit price the aggregator settled on when resolving a price change.
+          example: '500.00'
+        resolved_quantity:
+          type: string
+          nullable: true
+          description: Quantity the aggregator settled on when resolving a low-quantity issue.
+          example: null
+        source_id:
+          type: integer
+          nullable: true
+          example: 14
+        source_type:
+          type: string
+          nullable: true
+          description: >-
+            Polymorphic source the line is fulfilled from after splitting.
+          enum:
+            - Dscf::Marketplace::AggregatorListing
+            - Dscf::Marketplace::SubSupplier
+            - Dscf::Core::Business
+          example: Dscf::Marketplace::AggregatorListing
+        source_name:
+          type: string
+          nullable: true
+          description: Display name of the assigned source (supplier / sub-supplier / aggregator listing).
+          example: Yirgacheffe Arabica

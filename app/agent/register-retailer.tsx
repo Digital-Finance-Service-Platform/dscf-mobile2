@@ -2,29 +2,30 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
-import { marketRegisterRetailer } from "@/lib/api/clients";
+import { authSignup } from "@/lib/api/clients";
 
 export default function AgentRegisterRetailerScreen() {
   const router = useRouter();
 
   const [step, setStep] = useState<"form" | "otp">("form");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
-  const [tinNumber, setTinNumber] = useState("");
   const [location, setLocation] = useState("");
+  const [tinNumber, setTinNumber] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [otp, setOtp] = useState("");
@@ -32,9 +33,9 @@ export default function AgentRegisterRetailerScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const isFormValid =
-    name.trim() &&
+    firstName.trim() &&
+    lastName.trim() &&
     phone.trim() &&
-    tinNumber.trim() &&
     location.trim() &&
     password &&
     passwordConfirmation &&
@@ -78,16 +79,37 @@ export default function AgentRegisterRetailerScreen() {
     try {
       const fullPhone = phone.startsWith("+251") ? phone : `+251${phone}`;
 
+      // Build payload according to POST /core/auth/signup contract
       const payload = {
-        name: name.trim(),
-        phone: fullPhone,
-        tin_number: tinNumber.trim(),
-        location: location.trim(),
-        password: password,
-        password_confirmation: passwordConfirmation,
+        user: {
+          phone: fullPhone,
+          password: password,
+          password_confirmation: passwordConfirmation,
+          user_profile_attributes: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+          },
+        },
+        retailer: {
+          name: `${firstName.trim()} ${lastName.trim()}`, // Use full name as retailer name
+          phone: fullPhone,
+          location: location.trim(),
+        },
       };
 
-      await marketRegisterRetailer(payload);
+      // Add TIN number only if provided (optional)
+      if (tinNumber.trim()) {
+        payload.retailer.tin_number = tinNumber.trim();
+      }
+
+      console.log("[AgentRegisterRetailer] Registering retailer via /auth/signup", {
+        firstName: payload.user.user_profile_attributes.first_name,
+        lastName: payload.user.user_profile_attributes.last_name,
+        hasTIN: !!tinNumber.trim(),
+      });
+
+      // authSignup already attaches the agent's Bearer token and sends to /auth/signup
+      await authSignup(payload);
 
       Alert.alert("Success", "Retailer registered successfully!", [
         {
@@ -127,14 +149,26 @@ export default function AgentRegisterRetailerScreen() {
         >
           {step === "form" ? (
             <>
-              <Text style={styles.fieldLabel}>Retailer Name *</Text>
+              <Text style={styles.fieldLabel}>First Name *</Text>
               <View style={styles.inputBox}>
-                <MaterialIcons name="store" size={18} color="#0a2f4a" />
+                <MaterialIcons name="person" size={18} color="#0a2f4a" />
                 <TextInput
                   style={styles.inputText}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Enter retailer/shop name"
+                  value={firstName}
+                  onChangeText={setFirstName}
+                  placeholder="Enter first name"
+                  placeholderTextColor="#9a9a9a"
+                />
+              </View>
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Last Name *</Text>
+              <View style={styles.inputBox}>
+                <MaterialIcons name="person-outline" size={18} color="#0a2f4a" />
+                <TextInput
+                  style={styles.inputText}
+                  value={lastName}
+                  onChangeText={setLastName}
+                  placeholder="Enter last name"
                   placeholderTextColor="#9a9a9a"
                 />
               </View>
@@ -153,19 +187,6 @@ export default function AgentRegisterRetailerScreen() {
                 />
               </View>
 
-              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>TIN Number *</Text>
-              <View style={styles.inputBox}>
-                <MaterialIcons name="badge" size={18} color="#0a2f4a" />
-                <TextInput
-                  style={styles.inputText}
-                  value={tinNumber}
-                  onChangeText={setTinNumber}
-                  placeholder="Enter TIN number"
-                  placeholderTextColor="#9a9a9a"
-                  keyboardType="number-pad"
-                />
-              </View>
-
               <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Location *</Text>
               <View style={styles.inputBox}>
                 <MaterialIcons name="location-on" size={18} color="#0a2f4a" />
@@ -175,6 +196,19 @@ export default function AgentRegisterRetailerScreen() {
                   onChangeText={setLocation}
                   placeholder="e.g., Kirkos, Addis Ababa"
                   placeholderTextColor="#9a9a9a"
+                />
+              </View>
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>TIN Number (Optional)</Text>
+              <View style={styles.inputBox}>
+                <MaterialIcons name="badge" size={18} color="#0a2f4a" />
+                <TextInput
+                  style={styles.inputText}
+                  value={tinNumber}
+                  onChangeText={setTinNumber}
+                  placeholder="Enter TIN number if available"
+                  placeholderTextColor="#9a9a9a"
+                  keyboardType="number-pad"
                 />
               </View>
 

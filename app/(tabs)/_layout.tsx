@@ -234,6 +234,28 @@ function AppHeader() {
 }
 
 export default function TabLayout() {
+  const router = useRouter();
+  const { user, initialized } = useSdk();
+
+  // Redirect agents and suppliers to their respective screens
+  useEffect(() => {
+    if (initialized && user) {
+      const roles = user?.roles ?? [];
+      const isAgent = roles.some((r: any) => r?.code?.toUpperCase() === "AGENT");
+      const isSupplier = roles.some((r: any) => r?.code?.toUpperCase() === "SUPPLIER");
+      const isRetailer = roles.some((r: any) => r?.code?.toUpperCase() === "RETAILER");
+      
+      // Agent role takes priority
+      if (isAgent) {
+        router.replace("/agent/retailers");
+      } else if (isSupplier && !isRetailer) {
+        // Suppliers (who are not also retailers) go to supplier dashboard
+        router.replace("/supplier/dashboard");
+      }
+      // Retailers stay on marketplace tabs
+    }
+  }, [initialized, user, router]);
+
   useEffect(() => {
     if (Platform.OS === "android") {
       (async () => {

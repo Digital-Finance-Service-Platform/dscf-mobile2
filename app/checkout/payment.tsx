@@ -1,12 +1,12 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, View, TouchableOpacity, Alert } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { Alert, StyleSheet, TouchableOpacity, View } from "react-native";
 
+import { useCart } from "@/components/cart-context";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
-import { useCart } from "@/components/cart-context";
-import { useSdk } from "@/lib/sdk/context";
 import { marketCreateOrder } from "@/lib/api/clients";
+import { useSdk } from "@/lib/sdk/context";
 
 export const options = { headerShown: false };
 
@@ -42,32 +42,6 @@ export default function PaymentScreen() {
     item.raw?.listing?.id ??
     item.raw?.id;
 
-  const getRawUnitId = (item: any) =>
-    item.unit_id ??
-    item.unitId ??
-    item.raw?.unit_id ??
-    item.raw?.unit?.id ??
-    item.raw?.product?.unit_id ??
-    item.raw?.product?.unit?.id;
-
-  const isDirectListingItem = (item: any) => Boolean(getRawListingId(item));
-
-  const getOrderRecipientId = (item: any) =>
-    item.ordered_to_id ??
-    item.orderedToId ??
-    item.ordered_to ??
-    item.raw?.ordered_to_id ??
-    item.raw?.ordered_to ??
-    item.raw?.supplier_id ??
-    item.raw?.seller_id ??
-    item.raw?.supplier?.id ??
-    item.raw?.seller?.id ??
-    item.raw?.supplier_product?.supplier_id ??
-    item.raw?.supplier_product?.supplier?.id ??
-    item.raw?.product?.supplier_id ??
-    item.raw?.product?.supplier?.id ??
-    item.raw?.user_id;
-
   const placeOrder = async () => {
     try {
       console.log("[PaymentScreen] placeOrder pressed", {
@@ -101,89 +75,75 @@ export default function PaymentScreen() {
         addressId: params.addressId,
       });
 
-      const firstItem: any = items[0];
-      const listingId = getRawListingId(firstItem);
-      const isDirectListing =
-        items.length === 1 && isDirectListingItem(firstItem);
-
-      const orderBase: any = {
+      // Build base order payload
+      const orderPayload: any = {
+        order_type: "direct_listing",
+        status: "pending",
+        fulfillment_type: "delivery",
+        payment_method: "cash",
         user_id: user.id,
         ordered_by_id: user.id,
-        status: "pending",
-        fulfillment_type: "delivery", // since they went through checkout!
-        payment_method: "cash",
       };
 
+      // Add dropoff_address_id only for delivery
       if (params.addressId) {
-        orderBase.dropoff_address_id = parseInt(String(params.addressId));
+        orderPayload.dropoff_address_id = parseInt(String(params.addressId));
       }
 
-      const it = firstItem as any;
-      let orderRecipientId = getOrderRecipientId(it);
+      // Build order_items_attributes from entire cart
+      orderPayload.order_items_attributes = items.map((cartItem: any) => {
+        const itemListingId = getRawListingId(cartItem);
+        return {
+          quantity: cartItem.quantity ?? cartItem.raw?.quantity ?? 1,
+          source_id: parseInt(String(itemListingId)) || itemListingId,
+          source_type: "Dscf::Marketplace::AggregatorListing",
+        };
+      });
 
-      // Check if it's an aggregator listing
-      const isAggregator =
-        it.raw?.aggregator_id !== undefined ||
-        it.raw?.aggregator !== undefined;
-
-      // If it's an aggregator item but missing an explicit recipient, set a default placeholder
-      if (isAggregator && !orderRecipientId) {
-        orderRecipientId =
-          it.raw?.aggregator_id ?? it.raw?.aggregator?.id ?? 1;
+      // Optional: set ordered_to_id to the aggregator (backend derives it if omitted)
+      const firstItem: any = items[0];
+      const aggregatorId =
+        firstItem.raw?.aggregator_id ?? firstItem.raw?.aggregator?.id;
+      if (aggregatorId) {
+        orderPayload.ordered_to_id = aggregatorId;
       }
-
-      if (!isDirectListing && !isAggregator) {
-        throw new Error(
-          "Unable to create order: only direct marketplace listings or aggregator listings are supported.",
-        );
-      }
-
-      const orderPayload: any = isAggregator
-        ? {
-            ...orderBase,
-            order_type: "direct_listing",
-            ordered_to_id:
-              it.raw?.aggregator_id ??
-              it.raw?.aggregator?.id ??
-              orderRecipientId,
-            order_items_attributes: items.map((cartItem: any) => {
-              const itemListingId = getRawListingId(cartItem);
-              return {
-                quantity: cartItem.quantity ?? cartItem.raw?.quantity ?? 1,
-                source_id: parseInt(String(itemListingId)) || itemListingId,
-                source_type: "Dscf::Marketplace::AggregatorListing",
-              };
-            }),
-          }
-        : {
-            ...orderBase,
-            listing_id: parseInt(String(listingId)) || listingId,
-            ordered_to_id: orderRecipientId,
-            order_type: "direct_listing",
-            order_items_attributes: items.map((cartItem: any) => ({
-              quantity: cartItem.quantity ?? cartItem.raw?.quantity ?? 1,
-            })),
-          };
 
       console.log(
         "[PaymentScreen] orderPayload",
         JSON.stringify(orderPayload, null, 2),
       );
-      // Call backend to create order
+
+      // ONE request per checkout — all cart items in one payload
       const response = await marketCreateOrder(orderPayload);
 
       if (response?.success && response?.data) {
-        const createdOrder = response.data;
+        // Handle single order OR array of orders (multi-aggregator split)
+        const orders = Array.isArray(response.data)
+          ? response.data
+          : [response.data];
+
         console.log(
-          "[PaymentScreen] Order created successfully",
-          createdOrder.id,
+          "[PaymentScreen] Order(s) created successfully",
+          orders.map((o: any) => o.id),
         );
 
         // Clear cart after successful order creation
         clear();
 
-        // Navigate to the created order's detail page
-        router.push(`/orders/${createdOrder.id}`);
+        // Navigate to first order (or show split summary if multiple)
+        if (orders.length === 1) {
+          router.push(`/orders/${orders[0].id}`);
+        } else {
+          // Multi-aggregator split — navigate to first and optionally show notification
+          console.log(
+            `[PaymentScreen] Cart split into ${orders.length} orders across aggregators`,
+          );
+          router.push(`/orders/${orders[0].id}`);
+          Alert.alert(
+            "Orders Created",
+            `Your cart was split into ${orders.length} orders across different suppliers.`,
+          );
+        }
       } else {
         const errorMsg =
           response?.errors ||

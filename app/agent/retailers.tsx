@@ -29,9 +29,8 @@ export default function AgentRetailersScreen() {
 
   const fetchRetailers = async () => {
     try {
-      // Get agent ID from user profile
-      const agentId = user?.id;
-      const res = await marketGetMyRetailers(agentId);
+      // Agent is derived from the Bearer token automatically
+      const res = await marketGetMyRetailers();
       const data = Array.isArray(res?.data) ? res.data : res || [];
       setRetailers(data);
       setError(null);
@@ -59,6 +58,18 @@ export default function AgentRetailersScreen() {
       default:
         return "#6b6b6b";
     }
+  };
+
+  const handleMakeOrder = (retailer: any) => {
+    // Navigate to assisted ordering screen for this retailer
+    router.push({
+      pathname: "/agent/assisted-order",
+      params: {
+        retailerId: retailer.id,
+        retailerName: retailer.name,
+        retailerPhone: retailer.phone,
+      },
+    });
   };
 
   const renderRetailer = ({ item }: { item: any }) => {
@@ -116,6 +127,18 @@ export default function AgentRetailersScreen() {
               </ThemedText>
             </View>
           )}
+        </View>
+
+        <View style={styles.actionsRow}>
+          <Pressable
+            style={styles.actionButton}
+            onPress={() => handleMakeOrder(item)}
+          >
+            <MaterialIcons name="shopping-cart" size={18} color="#fff" />
+            <ThemedText type="defaultSemiBold" style={styles.actionButtonText}>
+              Make Order for Retailer
+            </ThemedText>
+          </Pressable>
         </View>
       </View>
     );
@@ -258,6 +281,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   detailText: { color: "#6b6b6b", fontSize: 12, marginLeft: 6 },
+  actionsRow: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(10, 47, 74, 0.08)",
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0a2f4a",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    marginLeft: 8,
+  },
   errorContainer: {
     flex: 1,
     alignItems: "center",

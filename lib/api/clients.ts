@@ -326,6 +326,11 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
     if (payload.agent) requestBody.agent = payload.agent;
     if (payload.retailer) requestBody.retailer = payload.retailer;
 
+    // If retailer block exists, this is agent-onboarded signup - attach agent's Bearer token
+    const token = payload.retailer ? await getAccessToken() : null;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     // Don't log passwords
     console.log("[authSignup] POST", url, {
       email: requestBody.user.email,
@@ -333,11 +338,12 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
       first_name: requestBody.user.user_profile_attributes?.first_name,
       has_agent: !!requestBody.agent,
       has_retailer: !!requestBody.retailer,
+      has_bearer_token: !!token,
     });
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(requestBody),
     });
 
@@ -651,9 +657,14 @@ export async function marketGetProductInclusionRequests(): Promise<any> {
 
 // ─── Agent's Retailers ───────────────────────────────────────────────────────
 
-export async function marketGetMyRetailers(agentId?: number | string): Promise<any> {
-  const qs = agentId ? `?agent_id=${agentId}` : "";
-  return marketFetch(`/retailers/my_retailers${qs}`, { method: "GET" });
+/**
+ * Fetch retailers onboarded by the current agent.
+ * GET /marketplace/retailers/my_retailers
+ * 
+ * The agent is derived from the Bearer token (agent_id query param is no longer used).
+ */
+export async function marketGetMyRetailers(): Promise<any> {
+  return marketFetch(`/retailers/my_retailers`, { method: "GET" });
 }
 
 export async function marketGetRetailer(id: number | string): Promise<any> {
@@ -786,6 +797,48 @@ export async function marketCreateOrder(
   return marketFetch("/orders", {
     method: "POST",
     body: JSON.stringify({ order: payload }),
+  });
+}
+
+/**
+ * Agent creates an order on behalf of a retailer (assisted ordering).
+ * POST /marketplace/orders
+ * Includes agent_id and retailer_id in the payload.
+ */
+export async function marketCreateAssistedOrder(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/orders", {
+    method: "POST",
+    body: JSON.stringify({ order: payload }),
+  });
+}
+
+/**
+ * Confirm agent order with OTP code.
+ * POST /marketplace/orders/:id/confirm_agent_order
+ * The retailer reads the OTP to the agent who enters it to confirm.
+ */
+export async function marketConfirmAgentOrder(
+  orderId: number | string,
+  otpCode: string,
+): Promise<any> {
+  return marketFetch(`/orders/${orderId}/confirm_agent_order`, {
+    method: "POST",
+    body: JSON.stringify({ otp_code: otpCode }),
+  });
+}
+
+/**
+ * Resend OTP for agent order confirmation.
+ * POST /marketplace/orders/:id/resend_agent_order_otp
+ * Generates a fresh code and invalidates the old one.
+ */
+export async function marketResendAgentOrderOtp(
+  orderId: number | string,
+): Promise<any> {
+  return marketFetch(`/orders/${orderId}/resend_agent_order_otp`, {
+    method: "POST",
   });
 }
 

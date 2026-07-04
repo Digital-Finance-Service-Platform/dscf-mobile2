@@ -46,34 +46,6 @@ export default function CartScreen() {
     item.raw?.source_id ??
     item.raw?.id;
 
-  const getRawUnitId = (item: any) =>
-    item.unit_id ??
-    item.unitId ??
-    item.raw?.unit_id ??
-    item.raw?.unit?.id ??
-    item.raw?.product?.unit_id ??
-    item.raw?.product?.unit?.id;
-
-  const isDirectListingItem = (item: any) => Boolean(getRawListingId(item));
-
-  const getOrderRecipientId = (item: any) =>
-    item.ordered_to_id ??
-    item.orderedToId ??
-    item.ordered_to ??
-    item.raw?.ordered_to_id ??
-    item.raw?.ordered_to ??
-    item.raw?.aggregator_id ??
-    item.raw?.aggregator?.id ??
-    item.raw?.supplier_id ??
-    item.raw?.seller_id ??
-    item.raw?.supplier?.id ??
-    item.raw?.seller?.id ??
-    item.raw?.supplier_product?.supplier_id ??
-    item.raw?.supplier_product?.supplier?.id ??
-    item.raw?.product?.supplier_id ??
-    item.raw?.product?.supplier?.id ??
-    item.raw?.user_id;
-
   const placeOrder = async () => {
     if (!items || items.length === 0) {
       Alert.alert(
@@ -99,106 +71,82 @@ export default function CartScreen() {
         userId: user.id,
       });
 
-      const firstItem: any = items[0];
-      const listingId = getRawListingId(firstItem);
-      const isDirectListing =
-        items.length === 1 && isDirectListingItem(firstItem);
-
-      console.log("[Cart] firstItem metadata", {
-        firstItem,
-        listingId,
-        isDirectListing,
-      });
-
-      const orderBase: any = {
-        user_id: user.id,
-        ordered_by_id: user.id,
+      // Build order payload following the one-request requirement
+      const orderPayload: any = {
+        order_type: "direct_listing",
         status: "pending",
         fulfillment_type: "self_pickup",
         payment_method: "cash",
-        dropoff_address_id: null,
+        user_id: user.id,
+        ordered_by_id: user.id,
       };
 
-      const createdOrders: any[] = [];
-
-      // The backend only supports 1 listing per direct_listing order,
-      // so we must create a separate order for each item in the cart.
-      for (const item of items) {
+      // Build order_items_attributes from entire cart
+      orderPayload.order_items_attributes = items.map((item: any) => {
         const itemListingId = getRawListingId(item);
-        const isAggregator =
-          item.raw?.aggregator_id !== undefined ||
-          item.raw?.aggregator !== undefined ||
-          item.raw?.source_type === "Dscf::Marketplace::AggregatorListing";
+        return {
+          quantity: item.quantity ?? item.raw?.quantity ?? 1,
+          source_id: parseInt(String(itemListingId)) || itemListingId,
+          source_type: "Dscf::Marketplace::AggregatorListing",
+        };
+      });
 
-        let orderRecipientId = getOrderRecipientId(item);
-        if (isAggregator && !orderRecipientId) {
-          orderRecipientId =
-            item.raw?.aggregator_id ?? item.raw?.aggregator?.id ?? 1;
-        }
-
-        const orderPayload: any = isAggregator
-          ? {
-              ...orderBase,
-              listing_id: parseInt(String(itemListingId)) || itemListingId,
-              order_type: "direct_listing",
-              ordered_to_id:
-                parseInt(String(orderRecipientId)) || orderRecipientId,
-              order_items_attributes: [
-                {
-                  quantity: item.quantity ?? item.raw?.quantity ?? 1,
-                  source_id: parseInt(String(itemListingId)) || itemListingId,
-                  source_type: "Dscf::Marketplace::AggregatorListing",
-                },
-              ],
-            }
-          : {
-              ...orderBase,
-              listing_id: parseInt(String(itemListingId)) || itemListingId,
-              ordered_to_id:
-                parseInt(String(orderRecipientId)) || orderRecipientId,
-              order_type: "direct_listing",
-              order_items_attributes: [
-                {
-                  quantity: item.quantity ?? item.raw?.quantity ?? 1,
-                },
-              ],
-            };
-
-        console.log(
-          `[Cart] orderPayload for item ${item.title}`,
-          JSON.stringify(orderPayload, null, 2),
-        );
-        const response = await marketCreateOrder(orderPayload);
-
-        if (response?.success && response?.data) {
-          createdOrders.push(response.data);
-        } else {
-          throw new Error(
-            response?.errors ||
-              response?.error ||
-              response?.message ||
-              "Failed to create order",
-          );
-        }
+      // Optional: set ordered_to_id to the aggregator (backend derives it if omitted)
+      const firstItem: any = items[0];
+      const aggregatorId =
+        firstItem.raw?.aggregator_id ?? firstItem.raw?.aggregator?.id;
+      if (aggregatorId) {
+        orderPayload.ordered_to_id = aggregatorId;
       }
 
-      console.log(`[Cart] Successfully created ${createdOrders.length} orders`);
+      console.log(
+        "[Cart] orderPayload",
+        JSON.stringify(orderPayload, null, 2),
+      );
 
-      const combinedOrder = {
-        id: createdOrders.map((o) => o.id).join(","),
-        total_amount: total,
-        expected_delivery:
-          createdOrders[0]?.expected_delivery ||
-          new Date().toLocaleDateString(),
-        created_at: createdOrders[0]?.created_at || new Date().toISOString(),
-      };
+      // ONE request per checkout — all cart items in one payload
+      const response = await marketCreateOrder(orderPayload);
 
-      // Clear cart after successful order creation
-      setTimeout(() => clear(), 100);
+      if (response?.success && response?.data) {
+        // Handle single order OR array of orders (multi-aggregator split)
+        const orders = Array.isArray(response.data)
+          ? response.data
+          : [response.data];
 
-      // Store order and show success modal
-      setPlacedOrder(combinedOrder);
-      setShowPlacedModal(true);
+        console.log(
+          "[Cart] Order(s) created successfully",
+          orders.map((o: any) => o.id),
+        );
+
+        const combinedOrder = {
+          id: orders.map((o) => o.id).join(","),
+          total_amount: total,
+          expected_delivery:
+            orders[0]?.expected_delivery || new Date().toLocaleDateString(),
+          created_at: orders[0]?.created_at || new Date().toISOString(),
+        };
+
+        // Clear cart after successful order creation
+        setTimeout(() => clear(), 100);
+
+        // Store order and show success modal
+        setPlacedOrder(combinedOrder);
+        setShowPlacedModal(true);
+
+        // Notify user if cart was split across aggregators
+        if (orders.length > 1) {
+          console.log(
+            `[Cart] Cart split into ${orders.length} orders across aggregators`,
+          );
+        }
+      } else {
+        const errorMsg =
+          response?.errors ||
+          response?.error ||
+          response?.message ||
+          "Failed to create order";
+        throw new Error(errorMsg);
+      }
     } catch (err: any) {
       console.warn("[Cart] Failed to place order", err?.message || err);
       const errorMsg =
