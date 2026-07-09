@@ -4,17 +4,14 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Image } from "expo-image";
 import React from "react";
 import {
-  Dimensions,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  Modal,
-  FlatList,
-  Pressable,
-  Text,
-  SafeAreaView,
-  ScrollView,
-  Alert,
+    Dimensions,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 
 import { CompareModal } from "@/components/compare-modal";
@@ -104,32 +101,10 @@ export function ProductCard({
       activeOpacity={0.7}
     >
       <View style={[styles.productThumbWrap, compact && styles.compactThumb]}>
-        <Pressable onPress={() => images && images.length > 0 && setShowGallery(true)}>
-          <Image
-            source={image || require("@/assets/images/favicon.png")}
-            style={[styles.productThumb, compact && styles.compactImage]}
-          />
-        </Pressable>
-        {images && images.length > 1 && (
-          <View style={styles.thumbRow}>
-            {images.slice(0, 5).map((src, idx) => (
-              <Pressable key={idx} onPress={() => setDetailIndex(idx)}>
-                <Image
-                  source={{ uri: src }}
-                  style={[
-                    styles.thumbImage,
-                    detailIndex === idx && { borderWidth: 2, borderColor: "#8a1d1d" },
-                  ]}
-                />
-              </Pressable>
-            ))}
-            {images.length > 5 && (
-              <View style={styles.moreBadge}>
-                <ThemedText type="default" style={styles.moreText}>+{images.length - 5}</ThemedText>
-              </View>
-            )}
-          </View>
-        )}
+        <Image
+          source={image || require("@/assets/images/favicon.png")}
+          style={[styles.productThumb, compact && styles.compactImage]}
+        />
       </View>
 
       <Modal visible={showGallery} transparent animationType="slide">
@@ -138,20 +113,26 @@ export function ProductCard({
             <TouchableOpacity style={styles.modalClose} onPress={() => setShowGallery(false)}>
               <Text style={{ fontSize: 18, color: "#fff" }}>Close</Text>
             </TouchableOpacity>
-            <FlatList
-              ref={galleryRef}
-              data={detailGallerySources}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              nestedScrollEnabled
-              getItemLayout={(_, index) => ({ length: Dimensions.get("window").width, offset: Dimensions.get("window").width * index, index })}
-              initialScrollIndex={detailIndex}
-              keyExtractor={(_, idx) => String(idx)}
-              renderItem={({ item }) => (
-                <Image source={item} style={styles.modalImage} contentFit="contain" />
-              )}
-            />
+            {detailGallerySources.length > 0 ? (
+              <FlatList
+                ref={galleryRef}
+                data={detailGallerySources}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                getItemLayout={(_, index) => ({ length: Dimensions.get("window").width, offset: Dimensions.get("window").width * index, index })}
+                initialScrollIndex={Math.min(detailIndex, detailGallerySources.length - 1)}
+                keyExtractor={(_, idx) => String(idx)}
+                renderItem={({ item }) => (
+                  <Image source={item} style={styles.modalImage} contentFit="contain" />
+                )}
+              />
+            ) : (
+              <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#fff", fontSize: 16 }}>No images available</Text>
+              </View>
+            )}
           </View>
         </View>
       </Modal>

@@ -15,6 +15,7 @@ import {
     View,
 } from "react-native";
 
+import { OpenStreetMapView } from "@/components/openstreetmap-view";
 import { PageShell } from "@/components/page-shell";
 import { authSignup } from "@/lib/api/clients";
 

@@ -15,6 +15,7 @@ import {
 import { OpenStreetMapView } from "@/components/openstreetmap-view";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
+import { storeOnboardingData } from "@/lib/onboarding-storage";
 
 type UploadAsset = DocumentPicker.DocumentPickerAsset;
 
@@ -121,21 +122,51 @@ export default function OnboardingSupplierScreen() {
     setAdditionalDocs([...additionalDocs, ...(result.assets ?? [])]);
   };
 
-  const handleContinue = () => {
-    router.push({
-      pathname: "/onboarding/otp" as any,
-      params: {
+  const handleContinue = async () => {
+    // Store all onboarding data including documents in temporary storage
+    try {
+      await storeOnboardingData({
         role: "supplier",
         businessName,
         contactName,
         phone,
-        latitude: pin?.latitude,
-        longitude: pin?.longitude,
         email,
-        licenseFileName: licenseFile?.name,
-        additionalDocsCount: additionalDocs.length,
-      },
-    });
+        latitude: pin?.latitude?.toString(),
+        longitude: pin?.longitude?.toString(),
+        documents: {
+          licenseFile: licenseFile ? {
+            uri: licenseFile.uri,
+            name: licenseFile.name,
+            mimeType: licenseFile.mimeType || "application/octet-stream",
+            size: licenseFile.size,
+          } : undefined,
+          additionalDocs: additionalDocs.map(doc => ({
+            uri: doc.uri,
+            name: doc.name,
+            mimeType: doc.mimeType || "application/octet-stream",
+            size: doc.size,
+          })),
+        },
+      });
+
+      router.push({
+        pathname: "/onboarding/otp" as any,
+        params: {
+          role: "supplier",
+          phone,
+        },
+      });
+    } catch (err: any) {
+      console.error("[SupplierOnboarding] Failed to store data:", err);
+      // Still continue even if storage fails, but log the error
+      router.push({
+        pathname: "/onboarding/otp" as any,
+        params: {
+          role: "supplier",
+          phone,
+        },
+      });
+    }
   };
 
   return (

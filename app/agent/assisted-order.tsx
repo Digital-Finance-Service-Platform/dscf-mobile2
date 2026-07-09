@@ -294,8 +294,8 @@ export default function AssistedOrderScreen() {
                 onAddToCart={() => handleAddToCart(item)}
               />
             )}
-            scrollEnabled={false}
-            ListFooterComponent={<View style={{ height: 100 }} />}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
           />
         )}
 

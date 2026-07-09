@@ -519,6 +519,13 @@ export async function coreGetBusiness(id: number | string): Promise<any> {
   return coreFetch(`/businesses/${id}`, { method: "GET" });
 }
 
+export async function coreCreateBusiness(formData: FormData): Promise<any> {
+  return coreFetch("/businesses", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export async function coreUpdateBusiness(
   id: number | string,
   payload: Record<string, any>,
@@ -526,6 +533,49 @@ export async function coreUpdateBusiness(
   return coreFetch(`/businesses/${id}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function coreSubmitBusiness(id: number | string): Promise<any> {
+  return coreFetch(`/businesses/${id}/submit`, {
+    method: "PATCH",
+  });
+}
+
+export async function coreResubmitBusiness(
+  id: number | string,
+  formData: FormData,
+): Promise<any> {
+  return coreFetch(`/businesses/${id}/resubmit`, {
+    method: "PATCH",
+    body: formData,
+  });
+}
+
+// ─── Business Documents ──────────────────────────────────────────────────────
+
+export async function coreGetBusinessDocuments(
+  businessId: number | string,
+): Promise<any> {
+  return coreFetch(`/businesses/${businessId}/documents`, { method: "GET" });
+}
+
+export async function coreCreateBusinessDocument(
+  businessId: number | string,
+  formData: FormData,
+): Promise<any> {
+  return coreFetch(`/businesses/${businessId}/documents`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function coreDeleteBusinessDocument(
+  businessId: number | string,
+  documentId: number | string,
+): Promise<any> {
+  return coreFetch(`/businesses/${businessId}/documents/${documentId}`, {
+    method: "DELETE",
   });
 }
 
