@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Pressable,
   SafeAreaView,
@@ -11,11 +11,27 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { setItemAsync } from "@/lib/secureStore";
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    // We intentionally do NOT set "has_seen_welcome" on mount.
+    // It should only be set when the user takes an action to leave the welcome screen.
+  }, []);
+
+  const handleGetStarted = () => {
+    setItemAsync("has_seen_welcome", "true").catch(() => {});
+    router.push("/onboarding/role");
+  };
+
+  const handleSignIn = () => {
+    setItemAsync("has_seen_welcome", "true").catch(() => {});
+    router.push("/login");
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -54,7 +70,7 @@ export default function WelcomeScreen() {
         <View style={styles.ctaBlock}>
           <Pressable
             style={styles.continue}
-            onPress={() => router.push("/onboarding/role")}
+            onPress={handleGetStarted}
           >
             <Text style={styles.continueText}>Get Started</Text>
             <MaterialIcons
@@ -67,7 +83,7 @@ export default function WelcomeScreen() {
 
           <Pressable
             style={styles.signInLink}
-            onPress={() => router.push("/login")}
+            onPress={handleSignIn}
           >
             <Text style={styles.signInText}>
               Already have an account?{" "}

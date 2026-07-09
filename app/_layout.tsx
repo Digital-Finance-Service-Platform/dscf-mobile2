@@ -46,11 +46,21 @@ export default function RootLayout() {
 }
 
 function AuthStack() {
-  const { token, initialized } = useSdk();
+  const { token, initialized, user } = useSdk();
+  const [hasSeenWelcome, setHasSeenWelcome] = React.useState<boolean | null>(null);
 
-  // Wait for token load from secure storage
-  if (!initialized) return null;
-  const initialRoute = token ? "(tabs)" : "welcome";
+  React.useEffect(() => {
+    import("@/lib/secureStore").then(({ getItemAsync }) => {
+      getItemAsync("has_seen_welcome").then((val) => {
+        setHasSeenWelcome(val === "true");
+      });
+    });
+  }, []);
+
+  // Wait for token load from secure storage and welcome flag
+  if (!initialized || hasSeenWelcome === null) return null;
+  
+  const initialRoute = token ? "(tabs)" : (hasSeenWelcome ? "login" : "welcome");
 
   return (
     <Stack
@@ -71,10 +81,16 @@ function AuthStack() {
       <Stack.Screen name="onboarding/dropoff" options={{ headerShown: false }} />
       <Stack.Screen name="profile/index" options={{ headerShown: false }} />
       <Stack.Screen name="profile/business" options={{ headerShown: false }} />
+      <Stack.Screen name="supplier/dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="supplier/products" options={{ headerShown: false }} />
       <Stack.Screen name="supplier/listings" options={{ headerShown: false }} />
+      <Stack.Screen name="supplier/create-product" options={{ headerShown: false }} />
       <Stack.Screen name="supplier/request-product" options={{ headerShown: false }} />
+      <Stack.Screen name="supplier/orders" options={{ headerShown: false }} />
       <Stack.Screen name="agent/retailers" options={{ headerShown: false }} />
+      <Stack.Screen name="agent/register-retailer" options={{ headerShown: false }} />
+      <Stack.Screen name="agent/assisted-order" options={{ headerShown: false }} />
+      <Stack.Screen name="agent/order-confirmation" options={{ headerShown: false }} />
     </Stack>
   );
 }

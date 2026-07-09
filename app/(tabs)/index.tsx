@@ -16,7 +16,7 @@ import { SearchBar } from "@/components/search-bar";
 import { SectionHeader } from "@/components/section-header";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { marketGetAggregatorFeed, marketGetProducts, marketGetVisibleListings } from "@/lib/api/clients";
+import { marketGetAggregatorListings, marketGetVisibleListings } from "@/lib/api/clients";
 import { formatCurrency } from "@/lib/formatters";
 
 // Removed hardcoded TRENDING fixture — listings are loaded from the API only.
@@ -24,46 +24,59 @@ import { formatCurrency } from "@/lib/formatters";
 function mapApiListingToCard(listing: any) {
   const product = listing?.product ?? listing?.supplier_product?.product ?? {};
   const thumbnail =
+    listing?.thumbnail_url ??
     listing?.supplier_product?.product?.thumbnail_url ??
     product?.thumbnail_url ??
     null;
-  const image = thumbnail
-    ? { uri: thumbnail }
-    : require("@/assets/images/logo1.png");
-  const title = product?.name ?? listing?.title ?? "Untitled";
+  const imagesArr =
+    listing?.images_urls ??
+    listing?.supplier_product?.product?.images_urls ??
+    product?.images_urls ??
+    (thumbnail ? [thumbnail] : []);
+  const image = imagesArr && imagesArr.length > 0 ? { uri: imagesArr[0] } : require("@/assets/images/logo1.png");
+  const title = listing?.product_name ?? product?.name ?? listing?.title ?? "Untitled";
   const category = product?.category?.name ?? listing?.category ?? "";
   const price =
     listing?.price ?? listing?.supplier_price ?? listing?.price_text ?? 0;
+  
+  // Patch missing description if available in listing
+  if (!listing?.description && listing?.product_description) {
+    listing.description = listing.product_description;
+  }
   return {
     id: String(listing?.id ?? title),
     title,
     category,
     price,
     image,
+    images: imagesArr,
     raw: listing,
+    listing_id: listing?.id,
+    product_id: listing?.product?.id ?? listing?.supplier_product?.product?.id,
+    unit_id:
+      listing?.unit_id ??
+      listing?.unit?.id ??
+      listing?.product?.unit_id ??
+      listing?.product?.unit?.id ??
+      listing?.supplier_product?.product?.unit_id ??
+      listing?.supplier_product?.product?.unit?.id,
+    ordered_to_id:
+      listing?.supplier_id ??
+      listing?.seller_id ??
+      listing?.user_id ??
+      listing?.supplier_product?.supplier_id ??
+      listing?.supplier_product?.supplier?.id,
   };
 }
 
-function mapProductToCard(product: any) {
-  const thumbnail = product?.thumbnail_url ?? null;
-  const image = thumbnail
-    ? { uri: thumbnail }
-    : require("@/assets/images/logo1.png");
-  const title = product?.name ?? "Untitled";
-  const category = product?.category?.name ?? "";
-  const price = product?.price_per_unit ?? 0;
-  return {
-    id: String(product?.id),
-    title,
-    category,
-    price,
-    image,
-    raw: product,
-  };
-}
-
-function SearchBarComponent() {
-  return <SearchBar />;
+function SearchBarComponent({
+  value,
+  onChangeText,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+}) {
+  return <SearchBar value={value} onChangeText={onChangeText} />;
 }
 
 function CategoryChips({
@@ -134,6 +147,11 @@ function TrendingProductCard({ item }: { item: any }) {
       price,
       subtitle: item.category,
       image: item.image || require("@/assets/images/logo1.png"),
+      raw: item.raw ?? item,
+      listing_id: item.listing_id,
+      product_id: item.product_id,
+      unit_id: item.unit_id,
+      ordered_to_id: item.ordered_to_id,
     });
   };
 
@@ -144,6 +162,8 @@ function TrendingProductCard({ item }: { item: any }) {
       category={item.category}
       price={item.price}
       image={item.image}
+      images={item.images}
+      raw={item.raw}
       onAddToCart={onAdd}
     />
   );
@@ -166,33 +186,89 @@ export default function HomeScreen() {
     _t = undefined;
   }
   const { token, refreshKey } = useSdk();
+  const { addItem } = useCart();
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [listings, setListings] = useState<any[]>([]);
   const [aggregatorListings, setAggregatorListings] = useState<any[]>([]);
-  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Dynamically build categories from loaded products
+  // Dynamically build categories from aggregator listings
   const categories = useMemo(() => {
     const cats = new Set<string>();
-    catalogProducts.forEach((p) => {
-      if (p.category) cats.add(p.category);
+    aggregatorListings.forEach((item) => {
+      const categoryLabel = item.category || item.title;
+      if (categoryLabel) cats.add(categoryLabel);
     });
     return ["All", ...Array.from(cats)];
-  }, [catalogProducts]);
+  }, [aggregatorListings]);
+
+  const filteredAggregatorListings = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    let items = aggregatorListings;
+
+    if (selectedCategory !== "All") {
+      items = items.filter(
+        (item) =>
+          item.category === selectedCategory ||
+          item.title === selectedCategory,
+      );
+    }
+
+    if (query) {
+      items = items.filter((item) =>
+        String(item.title).toLowerCase().includes(query),
+      );
+    }
+
+    return [...items].sort((a, b) =>
+      String(a.title).localeCompare(String(b.title)),
+    );
+  }, [aggregatorListings, selectedCategory, searchQuery]);
+
+  const showFilteredAggregatorListings =
+    searchQuery.trim().length > 0 || selectedCategory !== "All";
+
+  const handleAddProduct = (item: any) => {
+    const price = parseFloat(String(item.price).replace(/[^0-9.]/g, "")) || 0;
+    addItem({
+      id: String(item.id),
+      title: item.title,
+      price,
+      subtitle: item.category,
+      image: item.image || require("@/assets/images/logo1.png"),
+      raw: item.raw ?? item,
+      listing_id: item.listing_id,
+      product_id: item.product_id,
+      unit_id: item.unit_id,
+      ordered_to_id: item.ordered_to_id,
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
-        const [visibleRes, aggregatorRes, productsRes] = await Promise.allSettled([
+        const [visibleRes, aggregatorRes] = await Promise.allSettled([
           marketGetVisibleListings(),
-          marketGetAggregatorFeed(),
-          marketGetProducts({ page: "1", per_page: "25" }),
+          marketGetAggregatorListings(),
         ]);
+        
+        const isAuthError = (res: PromiseSettledResult<any>) =>
+          res.status === "rejected" &&
+          (String(res.reason).toLowerCase().includes("authentication required") ||
+            String(res.reason).includes("401"));
+
+        if (isAuthError(visibleRes) || isAuthError(aggregatorRes)) {
+          console.warn("[HomeScreen] Authentication required, redirecting to login...");
+          if (mounted) {
+            router.replace("/login");
+            return;
+          }
+        }
         
         const visibleData = visibleRes.status === "fulfilled"
           ? (Array.isArray(visibleRes.value?.data) ? visibleRes.value.data : Array.isArray(visibleRes.value) ? visibleRes.value : [])
@@ -200,19 +276,23 @@ export default function HomeScreen() {
         const aggregatorData = aggregatorRes.status === "fulfilled"
           ? (Array.isArray(aggregatorRes.value?.data) ? aggregatorRes.value.data : Array.isArray(aggregatorRes.value) ? aggregatorRes.value : [])
           : [];
-        const productsData = productsRes.status === "fulfilled"
-          ? (Array.isArray(productsRes.value?.data) ? productsRes.value.data : Array.isArray(productsRes.value) ? productsRes.value : [])
-          : [];
         
         if (mounted) {
           setListings(visibleData.map(mapApiListingToCard));
           setAggregatorListings(aggregatorData.map(mapApiListingToCard));
-          setCatalogProducts(productsData.map(mapProductToCard));
           setError(null);
         }
       } catch (err) {
         console.warn("Failed to load marketplace listings:", err);
         const msg = String(err ?? "");
+        
+        if (msg.toLowerCase().includes("authentication required") || msg.includes("401")) {
+          if (mounted) {
+            router.replace("/login");
+            return;
+          }
+        }
+        
         if (
           msg.includes("Network request failed") ||
           msg.toLowerCase().includes("could not reach market server") ||
@@ -233,32 +313,21 @@ export default function HomeScreen() {
     };
   }, [_t, token, refreshKey]);
 
-  const products = useMemo(() => {
-    // Use catalog products from /marketplace/products endpoint
-    if (selectedCategory === "All") return catalogProducts;
-    return catalogProducts.filter((p) => p.category === selectedCategory);
-  }, [catalogProducts, selectedCategory]);
-
   return (
     <ParallaxScrollView>
       <ThemedView style={styles.container}>
-        <SearchBarComponent />
-        <SectionHeader
-          title="Categories"
-          actionText="View all"
-          onActionPress={() => router.push("/categories")}
-        />
+        <SearchBarComponent value={searchQuery} onChangeText={setSearchQuery} />
 
         <CategoryChips
+          categories={categories}
           active={selectedCategory}
           onSelect={setSelectedCategory}
-          categories={categories}
         />
 
-        {selectedCategory === "All" && <TopPickCard />}
+        {selectedCategory === "All" && !searchQuery.trim() && <TopPickCard />}
 
         <SectionHeader
-          title="Trending Products"
+          title={searchQuery.trim() ? "Search Results" : "Aggregator Deals"}
           style={styles.sectionHeaderSmall}
         />
 
@@ -272,16 +341,16 @@ export default function HomeScreen() {
               {error}
             </ThemedText>
           </View>
-        ) : products.length === 0 ? (
+        ) : filteredAggregatorListings.length === 0 ? (
           <View style={{ marginTop: 24, alignItems: "center" }}>
             <ThemedText type="default" lightColor="#6b6b6b">
-              {`The ${selectedCategory} category is not available at this time.`}
+              No aggregator deals found.
             </ThemedText>
           </View>
         ) : (
           <FlatList
-            data={products}
-            keyExtractor={(i) => i.id}
+            data={showFilteredAggregatorListings ? filteredAggregatorListings : aggregatorListings}
+            keyExtractor={(i) => `agg-${i.id}`}
             numColumns={2}
             columnWrapperStyle={styles.columnWrap}
             renderItem={({ item }) => <TrendingProductCard item={item} />}
@@ -290,27 +359,6 @@ export default function HomeScreen() {
               <View style={{ height: insets.bottom + 26 }} />
             }
           />
-        )}
-
-        {/* Aggregator Listings Section */}
-        {aggregatorListings.length > 0 && (
-          <>
-            <SectionHeader
-              title="Aggregator Deals"
-              style={styles.sectionHeaderSmall}
-            />
-            <FlatList
-              data={aggregatorListings.slice(0, 6)}
-              keyExtractor={(i) => `agg-${i.id}`}
-              numColumns={2}
-              columnWrapperStyle={styles.columnWrap}
-              renderItem={({ item }) => <TrendingProductCard item={item} />}
-              scrollEnabled={false}
-              ListFooterComponent={
-                <View style={{ height: insets.bottom + 26 }} />
-              }
-            />
-          </>
         )}
       </ThemedView>
     </ParallaxScrollView>

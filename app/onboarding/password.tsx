@@ -2,21 +2,25 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    TextInput,
+    View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 import {
-  authLogin,
-  authSignup,
-  marketRegisterSupplier,
-  setAccessToken,
+    authLogin,
+    authSignup,
+    marketRegisterSupplier,
+    setAccessToken,
 } from "@/lib/api/clients";
+import {
+    clearOnboardingData,
+    getOnboardingData,
+} from "@/lib/onboarding-storage";
 import { useSdk } from "@/lib/sdk/context";
 
 export default function PasswordCreationScreen() {
@@ -83,19 +87,59 @@ export default function PasswordCreationScreen() {
       // - Agent/Retailer: atomic authSignup with agent/retailer blocks (per spec)
 
       if (role === "supplier") {
+        // Retrieve stored onboarding data including documents
+        const storedData = await getOnboardingData();
+        
         // Supplier registration via marketplace endpoint only (creates its own user)
         const formData = new FormData();
-        formData.append("business_name", businessName || fullName || "");
-        formData.append("contact_person_name", contactName || "");
+        
+        // Use stored data if available, otherwise fall back to params
+        const supplierBusinessName = storedData?.businessName || businessName || fullName || "";
+        const supplierContactName = storedData?.contactName || contactName || "";
+        const supplierPhone = storedData?.phone || phone || "";
+        const supplierEmail = storedData?.email || email || "";
+        const supplierLocation = storedData?.latitude && storedData?.longitude
+          ? `${storedData.latitude},${storedData.longitude}`
+          : (serviceArea || `${latitude || ""},${longitude || ""}`);
+        
+        formData.append("business_name", supplierBusinessName);
         formData.append("contact_person_phone", fullPhone || "");
-        formData.append("tin_number", tin || "");
-        formData.append("location", serviceArea || `${latitude || ""},${longitude || ""}`);
         formData.append("password", password);
         formData.append("password_confirmation", confirmPassword || password);
-        if (email) formData.append("email", email);
+        formData.append("location", supplierLocation);
+        
+        if (supplierContactName) formData.append("contact_person_name", supplierContactName);
+        if (supplierEmail) formData.append("email", supplierEmail);
+        if (tin) formData.append("tin_number", tin);
         if (gender) formData.append("gender", gender);
 
+        // Add documents from stored data
+        if (storedData?.documents?.licenseFile) {
+          const license = storedData.documents.licenseFile;
+          formData.append("business_license", {
+            uri: license.uri,
+            name: license.name,
+            type: license.mimeType || "application/octet-stream",
+          } as any);
+          console.log("[Password] Added business_license:", license.name);
+        }
+
+        if (storedData?.documents?.additionalDocs && storedData.documents.additionalDocs.length > 0) {
+          storedData.documents.additionalDocs.forEach((doc) => {
+            formData.append("additional_documents[]", {
+              uri: doc.uri,
+              name: doc.name,
+              type: doc.mimeType || "application/octet-stream",
+            } as any);
+          });
+          console.log("[Password] Added", storedData.documents.additionalDocs.length, "additional documents");
+        }
+
+        console.log("[Password] Submitting supplier registration with documents");
         const regResult = await marketRegisterSupplier(formData);
+
+        // Clear stored onboarding data after successful registration
+        await clearOnboardingData();
 
         // Extract tokens from response if returned
         const accessToken =
@@ -202,6 +246,9 @@ export default function PasswordCreationScreen() {
       setLoading(false);
       const msg = e?.message ?? "Registration failed";
       setError(msg);
+      
+      // Don't clear onboarding data on error, so user can retry
+      console.error("[Password] Registration error:", msg);
     }
   };
 

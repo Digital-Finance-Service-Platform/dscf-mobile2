@@ -2,21 +2,38 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Pressable,
-    RefreshControl,
-    StyleSheet,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
 } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
+import { SupplierEmptyState } from "@/components/supplier/supplier-empty-state";
 import { ThemedText } from "@/components/themed-text";
+import { useSupplierMenuItems } from "@/hooks/use-supplier-menu";
 import { marketGetMyProducts } from "@/lib/api/clients";
 import { formatCurrency } from "@/lib/formatters";
+import { supplierTheme } from "@/lib/supplier-theme";
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case "active":
+      return supplierTheme.success;
+    case "inactive":
+      return supplierTheme.warning;
+    case "discontinued":
+      return supplierTheme.error;
+    default:
+      return supplierTheme.textMuted;
+  }
+}
 
 export default function SupplierProductsScreen() {
   const router = useRouter();
+  const supplierMenuItems = useSupplierMenuItems();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,62 +62,52 @@ export default function SupplierProductsScreen() {
     fetchProducts();
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "#2e7d32";
-      case "inactive":
-        return "#f57c00";
-      case "discontinued":
-        return "#b00020";
-      default:
-        return "#6b6b6b";
-    }
-  };
-
   const renderProduct = ({ item }: { item: any }) => {
     const product = item?.product ?? {};
+    const price = item?.price ?? item?.supplier_price;
+    const qty = item?.quantity ?? item?.available_quantity ?? 0;
+    const status = item?.status ?? "inactive";
+    const statusColor = getStatusColor(status);
+
     return (
       <View style={styles.productCard}>
-        <View style={styles.productImage}>
-          {product?.thumbnail_url ? (
-            <View style={styles.imagePlaceholder}>
-              <MaterialIcons name="image" size={32} color="#6b6b6b" />
-            </View>
-          ) : (
-            <View style={styles.imagePlaceholder}>
-              <MaterialIcons name="inventory" size={32} color="#6b6b6b" />
-            </View>
-          )}
-        </View>
-        <View style={styles.productInfo}>
-          <ThemedText type="defaultSemiBold" style={styles.productName}>
-            {product?.name ?? "Unknown Product"}
-          </ThemedText>
-          <ThemedText type="default" style={styles.productSku}>
-            SKU: {product?.sku ?? "N/A"}
-          </ThemedText>
-          <View style={styles.priceRow}>
-            <ThemedText type="default" style={styles.price}>
-              {item?.supplier_price ? formatCurrency(item.supplier_price) : "No price"}
-            </ThemedText>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: `${getStatusColor(item?.status ?? "inactive")}20` },
-              ]}
-            >
-              <ThemedText
-                type="defaultSemiBold"
-                style={[styles.statusText, { color: getStatusColor(item?.status ?? "inactive") }]}
-              >
-                {item?.status ?? "inactive"}
-              </ThemedText>
-            </View>
+        <View style={styles.productTop}>
+          <View style={styles.productIconWrap}>
+            <MaterialIcons name="inventory-2" size={26} color={supplierTheme.primary} />
           </View>
-          <ThemedText type="default" style={styles.quantity}>
-            Qty: {item?.available_quantity ?? 0} | MOQ: {item?.minimum_order_quantity ?? 0}
-          </ThemedText>
+          <View style={styles.productInfo}>
+            <ThemedText type="defaultSemiBold" style={styles.productName} numberOfLines={2}>
+              {product?.name ?? "Unknown Product"}
+            </ThemedText>
+            <ThemedText type="default" style={styles.productSku}>
+              SKU: {product?.sku ?? "N/A"}
+            </ThemedText>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
+            <ThemedText type="defaultSemiBold" style={[styles.statusText, { color: statusColor }]}>
+              {status}
+            </ThemedText>
+          </View>
+        </View>
+
+        <View style={styles.metricsRow}>
+          <View style={styles.metric}>
+            <ThemedText type="default" style={styles.metricLabel}>
+              Price
+            </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.metricValue}>
+              {price ? formatCurrency(price) : "—"}
+            </ThemedText>
+          </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metric}>
+            <ThemedText type="default" style={styles.metricLabel}>
+              Quantity
+            </ThemedText>
+            <ThemedText type="defaultSemiBold" style={styles.metricValue}>
+              {qty}
+            </ThemedText>
+          </View>
         </View>
       </View>
     );
@@ -108,9 +115,16 @@ export default function SupplierProductsScreen() {
 
   if (loading) {
     return (
-      <PageShell title="My Products" showBackButton style={styles.shell}>
+      <PageShell
+        title="My Products"
+        showBackButton
+        useBackIcon
+        headerVariant="retailer"
+        menuItems={supplierMenuItems}
+        style={styles.shell}
+      >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0a2f4a" />
+          <ActivityIndicator size="large" color={supplierTheme.primary} />
         </View>
       </PageShell>
     );
@@ -120,15 +134,22 @@ export default function SupplierProductsScreen() {
     <PageShell
       title="My Products"
       showBackButton
+      useBackIcon
+      headerVariant="retailer"
+      menuItems={supplierMenuItems}
       style={styles.shell}
       rightNode={
-        <Pressable onPress={() => router.push("/supplier/create-product" as any)}>
-          <MaterialIcons name="add-circle" size={24} color="#0a2f4a" />
+        <Pressable
+          style={styles.addButton}
+          onPress={() => router.push("/supplier/create-product" as any)}
+        >
+          <MaterialIcons name="add" size={22} color="#fff" />
         </Pressable>
       }
     >
       {error ? (
         <View style={styles.errorContainer}>
+          <MaterialIcons name="error-outline" size={40} color={supplierTheme.error} />
           <ThemedText type="default" style={styles.errorText}>
             {error}
           </ThemedText>
@@ -143,17 +164,33 @@ export default function SupplierProductsScreen() {
           data={products}
           keyExtractor={(item) => String(item?.id)}
           renderItem={renderProduct}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            products.length === 0 && styles.listEmpty,
+          ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          ListHeaderComponent={
+            products.length > 0 ? (
+              <View style={styles.summaryCard}>
+                <ThemedText type="defaultSemiBold" style={styles.summaryTitle}>
+                  Inventory Overview
+                </ThemedText>
+                <ThemedText type="default" style={styles.summaryText}>
+                  {products.length} product{products.length === 1 ? "" : "s"} in your catalog
+                </ThemedText>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="inventory" size={48} color="#6b6b6b" />
-              <ThemedText type="default" style={styles.emptyText}>
-                No products yet. Request a product to get started.
-              </ThemedText>
-            </View>
+            <SupplierEmptyState
+              icon="inventory"
+              title="No products yet"
+              message="Publish your first supplier product with price and quantity to start selling."
+              actionLabel="Create Product"
+              onAction={() => router.push("/supplier/create-product" as any)}
+            />
           }
         />
       )}
@@ -162,74 +199,102 @@ export default function SupplierProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  shell: { paddingTop: 60 },
+  shell: { paddingTop: 60, backgroundColor: supplierTheme.background },
   loadingContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 60,
   },
-  list: { padding: 16 },
+  list: { paddingBottom: 24, gap: 12 },
+  listEmpty: { flexGrow: 1 },
+  summaryCard: {
+    backgroundColor: supplierTheme.primaryDark,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 4,
+  },
+  summaryTitle: {
+    color: "#fff",
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  summaryText: {
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 14,
+  },
   productCard: {
+    backgroundColor: supplierTheme.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: supplierTheme.border,
+    ...supplierTheme.cardShadow,
+  },
+  productTop: {
     flexDirection: "row",
-    backgroundColor: "#fff",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  productIconWrap: {
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  productImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "#f5f5f5",
-  },
-  imagePlaceholder: {
-    flex: 1,
+    backgroundColor: supplierTheme.iconBg,
     alignItems: "center",
     justifyContent: "center",
   },
-  productInfo: { flex: 1, marginLeft: 12 },
-  productName: { color: "#0a2f4a", fontSize: 15 },
-  productSku: { color: "#6b6b6b", fontSize: 12, marginTop: 2 },
-  priceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 6,
-  },
-  price: { color: "#0a2f4a", fontWeight: "600", fontSize: 14 },
+  productInfo: { flex: 1 },
+  productName: { color: supplierTheme.primary, fontSize: 16 },
+  productSku: { color: supplierTheme.textMuted, fontSize: 13, marginTop: 3 },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   statusText: { fontSize: 11, textTransform: "capitalize" },
-  quantity: { color: "#6b6b6b", fontSize: 12, marginTop: 4 },
+  metricsRow: {
+    flexDirection: "row",
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: supplierTheme.border,
+  },
+  metric: { flex: 1, alignItems: "center" },
+  metricDivider: {
+    width: 1,
+    backgroundColor: supplierTheme.border,
+    marginVertical: 2,
+  },
+  metricLabel: { color: supplierTheme.textMuted, fontSize: 12 },
+  metricValue: {
+    color: supplierTheme.primary,
+    fontSize: 16,
+    marginTop: 4,
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: supplierTheme.primaryDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   errorContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 24,
     paddingVertical: 60,
-    paddingHorizontal: 20,
+    gap: 12,
   },
-  errorText: { color: "#b00020", textAlign: "center" },
+  errorText: { color: supplierTheme.error, textAlign: "center" },
   retryButton: {
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    backgroundColor: "#0a2f4a",
-    borderRadius: 8,
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: supplierTheme.primary,
+    borderRadius: 12,
   },
   retryText: { color: "#fff" },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyText: { color: "#6b6b6b", textAlign: "center", marginTop: 12 },
 });

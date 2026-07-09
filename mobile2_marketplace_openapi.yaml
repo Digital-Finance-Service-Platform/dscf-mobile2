@@ -1,0 +1,1523 @@
+openapi: 3.0.0
+info:
+  title: DSCF Mobile2 Marketplace API
+  description: >-
+    This is the official, master OpenAPI specification for the **Supply Chain Financing (DSCF) Mobile2 Client Application**. 
+    It defines all routes, schemas, and integration contracts for Retailers, Agents, and Wholesalers/Suppliers 
+    interacting with the backend services via `dscf-api`.
+    
+    ### System Engines & Namespaces
+    The API is divided into two Rails engines:
+    1. **Core Engine (`/core`)**: Authentication, Profile Management, Multi-Address CRUD, Fayda KYC, and Documents.
+    2. **Marketplace Engine (`/marketplace`)**: Listings, RFQs, Quotations, Orders, and Supplier Catalogs.
+    
+    ### Authentication
+    All non-public endpoints require a JWT bearer token passed in the `Authorization` header:
+    `Authorization: Bearer <access_token>`
+
+    ### Order Lifecycle (state machine)
+    An order's `status` moves through these states. The aggregator (admin) drives
+    steps 2–5; the **retailer client only acts at step 6**, and a supplier acts at
+    step 5 only for orders allocated to them.
+
+    | # | `status` | Who acts | Meaning |
+    |---|----------|----------|---------|
+    | 1 | `pending` / `validating` | system / aggregator | Order received; items being validated against current listings. |
+    | 2 | `splitting` | aggregator | All items validated; sources being assigned across suppliers. |
+    | 3 | `waiting_supplier_confirmation` | aggregator / supplier | Each allocation is confirmed (or not-confirmed with a reason) per item. |
+    | 4 | `waiting_retailer_confirmation` | **retailer** | Every allocation has responded; the consolidated order awaits the retailer's final confirm. |
+    | 5 | `confirmed` | system | Retailer confirmed; order moves to consolidation/fulfilment. |
+    | 6 | `completed` | system/supplier | Order fulfilled. |
+    | – | `cancelled` | any | Order/allocation rejected. |
+
+    **Retailer client rule:** show the confirm / cancel actions only when
+    `status == waiting_retailer_confirmation`. Use `has_validation_issues` and each
+    `order_items[].status` (`confirmed` / `cancelled`) to show the retailer which
+    lines survived splitting before they confirm. Items that were not-confirmed by a
+    supplier are returned as `cancelled` and excluded from the payable total.
+  version: 1.1.0
+servers:
+  - url: https://uat.api.fcgm.pro.et
+    description: UAT Sandbox Environment
+paths:
+  # ==========================================
+  # CORE ENGINE: Authentication & Profile
+  # ==========================================
+  /core/auth/signup:
+    post:
+      summary: User & Role Signup (Retailer / Agent)
+      description: Registers a new user account with optional, atomic creation of the associated Agent or Retailer marketplace profiles.
+      operationId: signupUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user
+              properties:
+                user:
+                  type: object
+                  required:
+                    - email
+                    - phone
+                    - password
+                    - password_confirmation
+                  properties:
+                    email:
+                      type: string
+                      format: email
+                      example: retailer@example.com
+                    phone:
+                      type: string
+                      pattern: '^\+251[0-9]{9}$'
+                      example: '+251911223344'
+                    password:
+                      type: string
+                      format: password
+                      example: securepass123
+                    password_confirmation:
+                      type: string
+                      format: password
+                      example: securepass123
+                    user_profile_attributes:
+                      type: object
+                      properties:
+                        first_name:
+                          type: string
+                          example: Abebe
+                        last_name:
+                          type: string
+                          example: Kebede
+                agent:
+                  type: object
+                  required:
+                    - name
+                    - phone
+                    - service_area
+                    - fayda_number
+                  properties:
+                    name:
+                      type: string
+                      example: Bole Agent PLC
+                    phone:
+                      type: string
+                      example: '+251911223344'
+                    service_area:
+                      type: string
+                      example: Bole Subcity
+                    fayda_number:
+                      type: string
+                      example: 'FY-88776655'
+                retailer:
+                  type: object
+                  required:
+                    - name
+                    - phone
+                    - tin_number
+                    - location
+                  properties:
+                    name:
+                      type: string
+                      example: Bole Corner Store
+                    phone:
+                      type: string
+                      example: '+251911998877'
+                    tin_number:
+                      type: string
+                      example: '1234567890'
+                    location:
+                      type: string
+                      description: Comma-separated coordinates (latitude,longitude). This is automatically parsed to build a default shipping address.
+                      example: '9.0115,38.7578'
+      responses:
+        '201':
+          description: Signup successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /core/auth/login:
+    post:
+      summary: User Login
+      description: Exchanges credentials for JWT session access tokens.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: retailer@example.com
+                password:
+                  type: string
+                  format: password
+                  example: securepass123
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Logged in successfully
+                  data:
+                    type: object
+                    properties:
+                      access_token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiJ9...
+                      refresh_token:
+                        type: string
+                        example: refresh_token_string...
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 42
+                          email:
+                            type: string
+                            example: retailer@example.com
+                          phone:
+                            type: string
+                            example: '+251911223344'
+                          roles:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                code:
+                                  type: string
+                                  example: RETAILER
+                                name:
+                                  type: string
+                                  example: Retailer
+                          review_status:
+                            type: object
+                            nullable: true
+                            properties:
+                              type:
+                                type: string
+                                example: retailer
+                              entity_id:
+                                type: integer
+                                example: 5
+                              status:
+                                type: string
+                                example: approved
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /core/auth/me:
+    get:
+      summary: Retrieve Authenticated User Context
+      description: Fetches current session context including active roles, profile, and multi-address configurations.
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Session synced successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User fetched successfully
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 42
+                          email:
+                            type: string
+                            example: retailer@example.com
+                          phone:
+                            type: string
+                            example: '+251911223344'
+                          roles:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  example: '1'
+                                code:
+                                  type: string
+                                  example: RETAILER
+                                name:
+                                  type: string
+                                  example: Retailer
+                          addresses:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Address'
+
+  /core/fayda/verify:
+    post:
+      summary: Fayda National ID Verification
+      description: Performs verification against the national Fayda registry for KYC compliance.
+      operationId: verifyFayda
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fayda_number
+                - otp
+              properties:
+                fayda_number:
+                  type: string
+                  example: 'FY-88776655'
+                otp:
+                  type: string
+                  example: '123456'
+      responses:
+        '200':
+          description: National identity verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '422':
+          description: Verification failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /core/businesses/my_business:
+    get:
+      summary: Fetch Active Business Details
+      description: Retrieves the general business entity details for the authenticated context.
+      operationId: getMyBusiness
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Business retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Businesses fetched successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Business'
+
+  /core/businesses/{business_id}/documents:
+    get:
+      summary: Index Business Verification Documents
+      description: Returns all licenses and certificates associated with the business profile.
+      operationId: getBusinessDocuments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: business_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 5
+      responses:
+        '200':
+          description: Documents list fetched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Documents fetched successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BusinessDocument'
+    post:
+      summary: Upload Business Document
+      description: Uploads a licensing file utilizing a multi-part form.
+      operationId: uploadBusinessDocument
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: business_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 5
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document[file]
+              properties:
+                document[file]:
+                  type: string
+                  format: binary
+                  description: Document file content (e.g. PDF, PNG, JPG)
+                document_type:
+                  type: string
+                  enum: [business_license, registration_certificate, tin_certificate, income_statement]
+                  example: business_license
+      responses:
+        '201':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Document created successfully
+                  data:
+                    $ref: '#/components/schemas/BusinessDocument'
+
+  /core/addresses:
+    get:
+      summary: Get Addresses
+      description: Returns saved address points for the user.
+      operationId: getAddresses
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Addresses loaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Addresses fetched successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Address'
+    post:
+      summary: Save New Address
+      description: Adds a shipping or warehouse destination.
+      operationId: createAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - address
+              properties:
+                address:
+                  type: object
+                  required:
+                    - address_type
+                    - country
+                    - city
+                  properties:
+                    address_type:
+                      type: string
+                      enum: [shipping, warehouse, business_hq, branch, pickup_point, residence, current]
+                      example: shipping
+                    country:
+                      type: string
+                      example: Ethiopia
+                    city:
+                      type: string
+                      example: Addis Ababa
+                    sub_city:
+                      type: string
+                      example: Kirkos
+                    woreda:
+                      type: string
+                      example: '04'
+                    kebele:
+                      type: string
+                      example: '11'
+                    house_numbers:
+                      type: string
+                      example: '994/B'
+                    po_box:
+                      type: string
+                      example: '10430'
+                    latitude:
+                      type: number
+                      format: float
+                      example: 9.0115
+                    longitude:
+                      type: number
+                      format: float
+                      example: 38.7578
+      responses:
+        '201':
+          description: Address created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Address'
+
+  /core/addresses/{id}:
+    patch:
+      summary: Update Address
+      description: Modifies details of a saved destination address.
+      operationId: updateAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 13
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                address:
+                  type: object
+                  properties:
+                    city:
+                      type: string
+                    sub_city:
+                      type: string
+                    house_numbers:
+                      type: string
+      responses:
+        '200':
+          description: Address updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Address'
+    delete:
+      summary: Delete Address
+      description: Removes a saved location point from address database.
+      operationId: deleteAddress
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 13
+      responses:
+        '200':
+          description: Address deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ==========================================
+  # MARKETPLACE ENGINE: Listings Feed & Orders
+  # ==========================================
+  /marketplace/aggregator_listings:
+    get:
+      summary: Query Aggregator Listings (Products Feed)
+      description: Fetches unified active catalog products offered by system aggregators. Supports Ransack parameters for sorting and filtering.
+      operationId: getAggregatorListings
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q[name_cont]
+          in: query
+          description: Filter listings containing this name snippet
+          required: false
+          schema:
+            type: string
+          example: Coffee
+        - name: q[status_eq]
+          in: query
+          description: Matches status
+          required: false
+          schema:
+            type: string
+            default: active
+        - name: page
+          in: query
+          description: Pagination page number
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          description: Pagination block limits
+          required: false
+          schema:
+            type: integer
+            default: 25
+      responses:
+        '200':
+          description: Listings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Aggregator listings fetched successfully
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AggregatorListing'
+
+  /marketplace/request_for_quotations:
+    post:
+      summary: Initiate RFQ (Draft)
+      description: Creates a draft Request for Quotation (RFQ) for bulk item supplies.
+      operationId: createRfqDraft
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - request_for_quotation
+              properties:
+                request_for_quotation:
+                  type: object
+                  required:
+                    - rfq_items_attributes
+                  properties:
+                    notes:
+                      type: string
+                      example: Need urgent delivery of cement.
+                    rfq_items_attributes:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - product_id
+                          - quantity
+                        properties:
+                          product_id:
+                            type: integer
+                            example: 3
+                          quantity:
+                            type: integer
+                            example: 100
+      responses:
+        '201':
+          description: Draft RFQ created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/RFQ'
+
+  /marketplace/request_for_quotations/{id}/send_rfq:
+    post:
+      summary: Submit RFQ to Open Market
+      description: Shifts RFQ status from `draft` to `sent`, making it visible to suppliers for bidding.
+      operationId: publishRfq
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 12
+      responses:
+        '200':
+          description: RFQ sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /marketplace/request_for_quotations/{id}/respond:
+    post:
+      summary: Respond to RFQ (Create Quotation)
+      description: Executed by Wholesalers/Suppliers on the mobile app to bid on active open market RFQs.
+      operationId: respondToRfq
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quotation
+              properties:
+                quotation:
+                  type: object
+                  required:
+                    - quotation_items_attributes
+                  properties:
+                    valid_until:
+                      type: string
+                      format: date-time
+                      example: '2026-07-01T12:00:00.000Z'
+                    notes:
+                      type: string
+                      example: Best price guaranteed.
+                    quotation_items_attributes:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - rfq_item_id
+                          - price
+                        properties:
+                          rfq_item_id:
+                            type: integer
+                            example: 145
+                          price:
+                            type: number
+                            format: float
+                            example: 320.00
+      responses:
+        '201':
+          description: Quotation bid submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Quotation created successfully
+                  data:
+                    $ref: '#/components/schemas/SuccessResponse'
+
+  /marketplace/quotations/{id}/accept:
+    post:
+      summary: Accept Quotation (Generate Order)
+      description: Accept a supplier's quotation bid, which automatically transitions the workflow to order creation.
+      operationId: acceptQuotation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 88
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fulfillment_type
+                - dropoff_address_id
+              properties:
+                fulfillment_type:
+                  type: string
+                  enum: [self_pickup, delivery]
+                  example: delivery
+                dropoff_address_id:
+                  type: integer
+                  example: 13
+      responses:
+        '200':
+          description: Quotation accepted and direct order generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Quotation accepted and order generated
+                  data:
+                    $ref: '#/components/schemas/Order'
+
+  /marketplace/orders:
+    get:
+      summary: List Orders
+      description: Returns orders placed by the user.
+      operationId: getOrders
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Orders list loaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+    post:
+      summary: Direct Order Placement (Dropoff Checkout)
+      description: >-
+        Submits direct catalog orders. For items sourced from unified Aggregator feeds, 
+        explicitly set `source_type` and `source_id` within the polymorphic line-items attributes.
+      operationId: placeOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - order
+              properties:
+                order:
+                  type: object
+                  required:
+                    - order_items_attributes
+                  properties:
+                    dropoff_address_id:
+                      type: integer
+                      description: Target address ID. If omitted, the backend order auto-resolution hook will automatically build/bind one using active user coordinates.
+                      example: 13
+                    payment_method:
+                      type: string
+                      enum: [cash, bank_transfer]
+                      default: cash
+                    fulfillment_type:
+                      type: string
+                      enum: [delivery, self_pickup]
+                      default: delivery
+                    order_items_attributes:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - quantity
+                          - source_id
+                          - source_type
+                        properties:
+                          quantity:
+                            type: integer
+                            example: 10
+                          source_id:
+                            type: integer
+                            description: ID of the listing item being purchased.
+                            example: 14
+                          source_type:
+                            type: string
+                            enum: [Dscf::Marketplace::AggregatorListing, Dscf::Marketplace::SupplierProduct]
+                            example: Dscf::Marketplace::AggregatorListing
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Order created successfully
+                  data:
+                    $ref: '#/components/schemas/Order'
+
+  /marketplace/orders/{id}:
+    get:
+      summary: View Order Details
+      description: Returns deep nesting tracking properties for a single order contract.
+      operationId: getOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 240
+      responses:
+        '200':
+          description: Order details loaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/OrderDetail'
+
+  /marketplace/orders/{id}/retailer_confirm:
+    post:
+      summary: Retailer Final Confirmation
+      description: >-
+        The retailer's single final action on an order. Only call this when the order
+        `status == waiting_retailer_confirmation` (every supplier/aggregator allocation has
+        already responded). `confirmed: true` finalizes the order (`status -> confirmed`,
+        moves to consolidation/fulfilment); `confirmed: false` cancels it (`status -> cancelled`)
+        and records the `reason`. Items dropped during splitting arrive as `order_items[]`
+        with `status: cancelled` and are excluded from `total_amount` — surface them so the
+        retailer sees the final basket before confirming.
+      operationId: confirmSplitOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 240
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirmed
+              properties:
+                confirmed:
+                  type: boolean
+                  description: True to finalize schedules, false to reject and cancel split configurations.
+                  example: true
+                reason:
+                  type: string
+                  description: Cancellation notes if rejected.
+                  example: Rejected due to updated pricing schemas.
+      responses:
+        '200':
+          description: Retailer split confirmations saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Retailer confirmation recorded
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 240
+                      status:
+                        type: string
+                        example: confirmed
+
+  /marketplace/orders/{id}/supplier_confirm:
+    post:
+      summary: Supplier Accept Sub-Contract Allocation
+      description: >-
+        Order-level confirmation by a supplier for an order placed/allocated to them:
+        `confirmed: true` accepts all of that supplier's pending (`processing`) lines at once,
+        `confirmed: false` rejects them with a `reason`. The order advances to
+        `waiting_retailer_confirmation` once every allocation across all sources has responded.
+
+        Note: per-item supplier self-confirmation of aggregator-split allocations is not yet
+        enabled — for split orders the aggregator currently confirms on the supplier's behalf
+        (see admin `confirm_item`). This endpoint is the supplier-facing path for direct orders.
+      operationId: confirmSupplierSubOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 241
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirmed
+              properties:
+                confirmed:
+                  type: boolean
+                  example: true
+                reason:
+                  type: string
+                  example: Quantity confirmed.
+      responses:
+        '200':
+          description: Supplier decision saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Supplier confirmation recorded
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 241
+                      status:
+                        type: string
+                        example: waiting_supplier_confirmation
+                      supplier_confirmed:
+                        type: boolean
+                        example: true
+
+  /marketplace/orders/{id}/cancel:
+    post:
+      summary: Cancel Order Contract
+      description: Cancels order state and item sub-records.
+      operationId: cancelOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 240
+      responses:
+        '200':
+          description: Cancellation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 240
+                      status:
+                        type: string
+                        example: cancelled
+
+  # ==========================================
+  # SUPPLIER MOBILE PORTAL ACTIONS
+  # ==========================================
+  /marketplace/supplier_products:
+    post:
+      summary: Publish Supplier Product / Price Catalog Listing
+      description: Executed by Supplier role users on mobile to upload new inventory lists.
+      operationId: publishSupplierProduct
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - supplier_product
+              properties:
+                supplier_product:
+                  type: object
+                  required:
+                    - product_id
+                    - price
+                    - quantity
+                  properties:
+                    product_id:
+                      type: integer
+                      example: 3
+                    price:
+                      type: number
+                      format: float
+                      example: 325.00
+                    quantity:
+                      type: integer
+                      example: 500
+      responses:
+        '201':
+          description: Listing published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Action completed successfully
+        data:
+          type: object
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Validation Failed
+        errors:
+          type: array
+          items:
+            type: string
+          example: ["Email has already been taken", "Phone is invalid"]
+
+    Address:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        address_type:
+          type: string
+          example: business_hq
+        country:
+          type: string
+          example: Ethiopia
+        city:
+          type: string
+          example: Addis Ababa
+        sub_city:
+          type: string
+          example: Bole
+        woreda:
+          type: string
+          example: '03'
+        kebele:
+          type: string
+          example: '12'
+        house_numbers:
+          type: string
+          example: '1045'
+        po_box:
+          type: string
+          example: '1000'
+        latitude:
+          type: number
+          nullable: true
+          example: 9.0115
+        longitude:
+          type: number
+          nullable: true
+          example: 38.7578
+
+    Business:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+        name:
+          type: string
+          example: Bole Retailers Plc
+        description:
+          type: string
+          example: General consumer goods retailer based in Bole
+        contact_email:
+          type: string
+          example: contact@boleretail.com
+        contact_phone:
+          type: string
+          example: '+251911998877'
+        tin_number:
+          type: string
+          example: '1234567890'
+        business_type_id:
+          type: integer
+          example: 1
+        business_type:
+          type: string
+          example: Retailer
+        status:
+          type: string
+          example: approved
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-06-20T10:00:00.000Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-06-25T14:30:00.000Z'
+
+    BusinessDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 8
+        document_type:
+          type: string
+          example: business_license
+        file_urls:
+          type: array
+          items:
+            type: string
+          example: ["https://uat.api.fcgm.pro.et/rails/active_storage/blobs/redirect/.../license.pdf"]
+        is_verified:
+          type: boolean
+          example: true
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-06-22T08:00:00.000Z'
+        name:
+          type: string
+          example: license.pdf
+        url:
+          type: string
+          example: "https://uat.api.fcgm.pro.et/rails/active_storage/blobs/redirect/.../license.pdf"
+
+    AggregatorListing:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 14
+        name:
+          type: string
+          example: Premium Ethiopian Coffee (500g)
+        description:
+          type: string
+          example: High-quality organically grown Arabica beans
+        price:
+          type: string
+          example: '350.00'
+        min_order_quantity:
+          type: integer
+          example: 5
+        max_order_quantity:
+          type: integer
+          example: 100
+        status:
+          type: string
+          example: active
+        product:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 3
+            name:
+              type: string
+              example: Premium Ethiopian Coffee (500g)
+            sku:
+              type: string
+              example: COF-500
+            image_url:
+              type: string
+              example: https://uat.api.fcgm.pro.et/assets/coffee.jpg
+        supplier:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 2
+            name:
+              type: string
+              example: Kaffa Growers Co-op
+
+    RFQ:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        notes:
+          type: string
+          example: Urgent dispatch
+        status:
+          type: string
+          example: draft
+        created_at:
+          type: string
+          format: date-time
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 240
+        status:
+          type: string
+          description: Current lifecycle stage. See "Order Lifecycle" in the API description.
+          enum:
+            - pending
+            - validating
+            - splitting
+            - waiting_supplier_confirmation
+            - waiting_retailer_confirmation
+            - confirmed
+            - processing
+            - completed
+            - cancelled
+          example: waiting_retailer_confirmation
+        order_type:
+          type: string
+          enum: [direct_listing, rfq_based]
+          example: direct_listing
+        fulfillment_type:
+          type: string
+          enum: [delivery, self_pickup]
+          example: self_pickup
+        payment_method:
+          type: string
+          enum: [cash, credit, bank_transfer]
+          example: cash
+        has_validation_issues:
+          type: boolean
+          description: True while any line item has an unresolved validation issue.
+          example: false
+        dropoff_address_id:
+          type: integer
+          nullable: true
+          example: 13
+        total_amount:
+          type: string
+          example: '3500.00'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-06-25T14:45:00.000Z'
+        order_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          description: >-
+            Single consolidated order. There are no separate child "split orders" — each
+            allocation lives on an `order_items[]` entry via its `source_type` / `source_id`
+            and per-item `status`. The retailer confirms the whole consolidated order once.
+          properties:
+            buyer_phone:
+              type: string
+              nullable: true
+              example: '+251934623433'
+            seller_name:
+              type: string
+              description: The aggregator/business the order is placed to.
+              example: Addis Aggregators
+            seller_phone:
+              type: string
+              nullable: true
+              example: '+251911000012'
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 480
+        product_id:
+          type: integer
+          example: 20
+        product_name:
+          type: string
+          example: Yirgacheffe Arabica
+        unit_id:
+          type: integer
+          example: 9
+        unit_name:
+          type: string
+          example: Kilogram
+        quantity:
+          type: string
+          example: '10.0'
+        unit_price:
+          type: string
+          description: Agreed unit price for this line (the order's price, not the live listing).
+          example: '350.00'
+        subtotal:
+          type: string
+          example: '3500.00'
+        status:
+          type: string
+          description: >-
+            Per-allocation confirmation state. `processing` = awaiting supplier/aggregator
+            confirmation; `confirmed` = accepted; `cancelled` = not-confirmed and dropped
+            from the order.
+          enum: [pending, confirmed, processing, fulfilled, cancelled]
+          example: confirmed
+        validation_status:
+          type: string
+          description: >-
+            Result of order validation against the current listing. The aggregator resolves
+            any non-`validated` value before splitting.
+          enum: [validated, no_longer_listed, price_changed, low_quantity]
+          example: validated
+        validation_note:
+          type: string
+          nullable: true
+          description: 'Human-readable detail for a validation issue, e.g. Price changed (listed: 500.0).'
+          example: 'Price changed (listed: 500.0)'
+        resolved_unit_price:
+          type: string
+          nullable: true
+          description: Unit price the aggregator settled on when resolving a price change.
+          example: '500.00'
+        resolved_quantity:
+          type: string
+          nullable: true
+          description: Quantity the aggregator settled on when resolving a low-quantity issue.
+          example: null
+        source_id:
+          type: integer
+          nullable: true
+          example: 14
+        source_type:
+          type: string
+          nullable: true
+          description: >-
+            Polymorphic source the line is fulfilled from after splitting.
+          enum:
+            - Dscf::Marketplace::AggregatorListing
+            - Dscf::Marketplace::SubSupplier
+            - Dscf::Core::Business
+          example: Dscf::Marketplace::AggregatorListing
+        source_name:
+          type: string
+          nullable: true
+          description: Display name of the assigned source (supplier / sub-supplier / aggregator listing).
+          example: Yirgacheffe Arabica

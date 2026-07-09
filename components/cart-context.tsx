@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+import { useSdk } from "@/lib/sdk/context";
 
 export type CartItem = {
   id: string;
@@ -7,6 +9,11 @@ export type CartItem = {
   subtitle?: string;
   image?: any;
   quantity: number;
+  raw?: any;
+  listing_id?: number | string;
+  product_id?: number;
+  unit_id?: number;
+  ordered_to_id?: number;
 };
 
 type CartContextType = {
@@ -27,6 +34,14 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const { token } = useSdk();
+
+  // Clear cart when user logs out (token becomes null)
+  useEffect(() => {
+    if (!token) {
+      setItems([]);
+    }
+  }, [token]);
 
   const addItem = (item: any) => {
     setItems((prev) => {

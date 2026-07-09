@@ -1,0 +1,21 @@
+export const supplierTheme = {
+  background: "#f4f6f8",
+  card: "#ffffff",
+  primary: "#0a2f4a",
+  primaryDark: "#00274d",
+  accent: "#800000",
+  text: "#1A1C1C",
+  textMuted: "#6b6b6b",
+  border: "#EAECF0",
+  iconBg: "#eef3f8",
+  success: "#2e7d32",
+  warning: "#f57c00",
+  error: "#b00020",
+  cardShadow: {
+    shadowColor: "#0a2f4a",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+} as const;

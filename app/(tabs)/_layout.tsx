@@ -154,6 +154,7 @@ function AppHeader() {
         <TouchableOpacity
           accessibilityLabel="Open cart"
           style={[layoutStyles.headerIconWrap, { marginLeft: -6 }]}
+          onPress={() => router.push("/(tabs)/cart")}
         >
           <IconSymbol name="cart" size={28} color={iconColor} />
           {count > 0 && (
@@ -184,9 +185,9 @@ function AppHeader() {
               } catch (e) {}
             }
             try {
-              router.replace("/welcome");
+              router.replace("/login");
               try {
-                console.log("AppHeader: navigated to /welcome");
+                console.log("AppHeader: navigated to /login");
               } catch (e) {}
             } catch (e) {
               // ignore
@@ -233,6 +234,28 @@ function AppHeader() {
 }
 
 export default function TabLayout() {
+  const router = useRouter();
+  const { user, initialized } = useSdk();
+
+  // Redirect agents and suppliers to their respective screens
+  useEffect(() => {
+    if (initialized && user) {
+      const roles = user?.roles ?? [];
+      const isAgent = roles.some((r: any) => r?.code?.toUpperCase() === "AGENT");
+      const isSupplier = roles.some((r: any) => r?.code?.toUpperCase() === "SUPPLIER");
+      const isRetailer = roles.some((r: any) => r?.code?.toUpperCase() === "RETAILER");
+      
+      // Agent role takes priority
+      if (isAgent) {
+        router.replace("/agent/retailers");
+      } else if (isSupplier && !isRetailer) {
+        // Suppliers (who are not also retailers) go to supplier dashboard
+        router.replace("/supplier/dashboard");
+      }
+      // Retailers stay on marketplace tabs
+    }
+  }, [initialized, user, router]);
+
   useEffect(() => {
     if (Platform.OS === "android") {
       (async () => {

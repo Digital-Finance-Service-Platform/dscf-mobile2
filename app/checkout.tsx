@@ -1,35 +1,133 @@
-import React, { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Platform,
-  KeyboardAvoidingView,
-} from "react-native";
-import { useRouter } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
+import { useCart } from "@/components/cart-context";
+import { OrderSummary } from "@/components/order-summary";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
-import { OrderSummary } from "@/components/order-summary";
-import { useCart } from "@/components/cart-context";
+import { coreCreateAddress, coreGetAddresses, coreUpdateAddress } from "@/lib/api/clients";
+import { useSdk } from "@/lib/sdk/context";
 
 export const options = { headerShown: false };
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const { subtotal } = useCart();
+  const { user } = useSdk();
 
-  const tax = +(subtotal * 0.08).toFixed(2);
-  const total = +(subtotal + tax).toFixed(2);
+  const total = subtotal;
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [region, setRegion] = useState("");
   const [subCity, setSubCity] = useState("");
   const [address, setAddress] = useState("");
+  const [addressId, setAddressId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Pre-populate name & phone from authenticated user profile
+  useEffect(() => {
+    if (user) {
+      const profile = user.user_profile || {};
+      const fullName = (profile.first_name ? `${profile.first_name} ${profile.last_name ?? ""}` : user.email || user.phone || "").trim();
+      if (fullName) setName(fullName);
+      
+      if (user.phone) {
+        // Strip prefix $+251$ as the UI has its own "+251" country prefix display box
+        const cleanedPhone = user.phone.startsWith("+251") ? user.phone.replace("+251", "") : user.phone;
+        setPhone(cleanedPhone);
+      }
+    }
+  }, [user]);
+
+  // Fetch and pre-populate shipping/default address
+  useEffect(() => {
+    async function loadShippingAddress() {
+      try {
+        const response = await coreGetAddresses();
+        const addressList = response?.data || response;
+        if (Array.isArray(addressList)) {
+          const shippingAddr = addressList.find((addr: any) => addr.address_type === "shipping") || addressList[0];
+          if (shippingAddr) {
+            setAddressId(shippingAddr.id);
+            if (shippingAddr.city) setRegion(shippingAddr.city);
+            if (shippingAddr.sub_city) setSubCity(shippingAddr.sub_city);
+
+            const parts = [];
+            if (shippingAddr.house_numbers) parts.push(`H.No ${shippingAddr.house_numbers}`);
+            if (shippingAddr.woreda) parts.push(`Woreda ${shippingAddr.woreda}`);
+            if (shippingAddr.kebele) parts.push(`Kebele ${shippingAddr.kebele}`);
+
+            if (parts.length > 0) {
+              setAddress(parts.join(", "));
+            } else if (user?.user_profile?.address) {
+              setAddress(user.user_profile.address);
+            }
+          } else if (user?.user_profile?.address) {
+            setAddress(user.user_profile.address);
+          }
+        }
+      } catch (err) {
+        console.warn("[Checkout] Failed to load shipping address:", err);
+      }
+    }
+
+    loadShippingAddress();
+  }, [user]);
+
+  const handleContinue = async () => {
+    setIsSaving(true);
+    let resolvedAddressId = addressId;
+
+    try {
+      const addressPayload = {
+        address_type: "shipping",
+        country: "Ethiopia",
+        city: region || "Addis Ababa",
+        sub_city: subCity || "",
+        house_numbers: address || "",
+      };
+
+      if (addressId) {
+        // Update existing address
+        await coreUpdateAddress(addressId, addressPayload);
+        console.log("[Checkout] Address updated successfully", addressId);
+      } else if (region || subCity || address) {
+        // Create new address if any address field is filled
+        const res = await coreCreateAddress(addressPayload);
+        if (res?.success && res?.data) {
+          resolvedAddressId = res.data.id;
+          setAddressId(res.data.id);
+          console.log("[Checkout] Address created successfully", res.data.id);
+        }
+      }
+    } catch (err) {
+      console.warn("[Checkout] Failed to save address:", err);
+    } finally {
+      setIsSaving(false);
+      router.push({
+        pathname: "/checkout/payment",
+        params: {
+          addressId: resolvedAddressId || "",
+          name,
+          phone,
+          region,
+          subCity,
+          address,
+        },
+      });
+    }
+  };
 
   return (
     <PageShell
@@ -39,18 +137,18 @@ export default function CheckoutScreen() {
         <>
           <OrderSummary
             subtotal={subtotal}
-            tax={tax}
             total={total}
             compact={true}
           />
 
           <TouchableOpacity
-            style={styles.continueBtn}
-            onPress={() => router.push("/checkout/payment")}
+            style={[styles.continueBtn, isSaving && { opacity: 0.6 }]}
+            onPress={handleContinue}
+            disabled={isSaving}
             accessibilityLabel="Continue to payment"
           >
             <ThemedText type="defaultSemiBold" style={{ color: "#fff" }}>
-              Continue to Payment →
+              {isSaving ? "Saving details..." : "Continue to Payment →"}
             </ThemedText>
           </TouchableOpacity>
         </>

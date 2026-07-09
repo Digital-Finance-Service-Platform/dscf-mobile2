@@ -116,9 +116,15 @@ const styles = StyleSheet.create({
   priceWrap: {
     marginRight: 8,
     alignItems: "flex-end",
-    justifyContent: "center",
+    justifyContent: "left",
+    flex: 1,
+    minWidth: 70,
   },
-  priceText: { fontSize: 20 },
+  priceText: {
+    fontSize: 18,
+    flexWrap: "wrap",
+    textAlign: "left",
+  },
   removeButton: {
     width: 30,
     height: 30,

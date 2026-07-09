@@ -38,7 +38,7 @@ const CORE_URL =
   process.env.EXPO_PUBLIC_CORE_URL ??
   process.env.NEXT_PUBLIC_CORE_URL ??
   (Constants.expoConfig?.extra as any)?.coreUrl ??
-  `${API_BASE.replace(/\/$/, "")}/core`;
+  API_BASE;
 
 try {
   console.log("[clients] MARKET_URL:", MARKET_URL, "CORE_URL:", CORE_URL);
@@ -140,6 +140,7 @@ export async function authLogin(payload: Record<string, any>): Promise<any> {
       json?.data?.refresh_token ?? json?.refresh_token ?? null;
     if (accessToken) {
       await setAccessToken(accessToken, refreshToken ?? undefined);
+      await setItemAsync("has_seen_welcome", "true");
     }
     return json;
   } catch (err: any) {
@@ -194,7 +195,20 @@ export async function marketFetch(
     const res = await fetch(url, { ...options, headers });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const msg = json?.message || `Request failed (status ${res.status})`;
+      // Provide detailed debug info for non-OK responses (helpful for 401)
+      try {
+        console.warn(
+          `[clients] marketFetch error ${res.status} -> ${url}`,
+          {
+            status: res.status,
+            statusText: res.statusText,
+            url,
+            tokenPresent: !!token,
+            responseBody: json,
+          },
+        );
+      } catch (e) {}
+      const msg = json?.message || json?.error || json?.errors || `Failed to load order history. Please try again.`;
       throw new Error(msg);
     }
     return json;
@@ -312,6 +326,11 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
     if (payload.agent) requestBody.agent = payload.agent;
     if (payload.retailer) requestBody.retailer = payload.retailer;
 
+    // If retailer block exists, this is agent-onboarded signup - attach agent's Bearer token
+    const token = payload.retailer ? await getAccessToken() : null;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     // Don't log passwords
     console.log("[authSignup] POST", url, {
       email: requestBody.user.email,
@@ -319,11 +338,12 @@ export async function authSignup(payload: Record<string, any>): Promise<any> {
       first_name: requestBody.user.user_profile_attributes?.first_name,
       has_agent: !!requestBody.agent,
       has_retailer: !!requestBody.retailer,
+      has_bearer_token: !!token,
     });
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(requestBody),
     });
 
@@ -427,10 +447,10 @@ export async function coreFetch(
   }
 }
 
-export async function faydaVerify(faydaNumber: string): Promise<any> {
+export async function faydaVerify(faydaNumber: string, otp: string): Promise<any> {
   return coreFetch("/fayda/verify", {
     method: "POST",
-    body: JSON.stringify({ fayda_number: faydaNumber }),
+    body: JSON.stringify({ fayda_number: faydaNumber, otp }),
   });
 }
 
@@ -485,7 +505,7 @@ export async function marketGetUnits(): Promise<any> {
 
 // ─── Aggregator Feed ─────────────────────────────────────────────────────────
 
-export async function marketGetAggregatorFeed(): Promise<any> {
+export async function marketGetAggregatorListings(): Promise<any> {
   return marketFetch("/aggregator_listings/feed", { method: "GET" });
 }
 
@@ -499,6 +519,13 @@ export async function coreGetBusiness(id: number | string): Promise<any> {
   return coreFetch(`/businesses/${id}`, { method: "GET" });
 }
 
+export async function coreCreateBusiness(formData: FormData): Promise<any> {
+  return coreFetch("/businesses", {
+    method: "POST",
+    body: formData,
+  });
+}
+
 export async function coreUpdateBusiness(
   id: number | string,
   payload: Record<string, any>,
@@ -509,7 +536,83 @@ export async function coreUpdateBusiness(
   });
 }
 
+export async function coreSubmitBusiness(id: number | string): Promise<any> {
+  return coreFetch(`/businesses/${id}/submit`, {
+    method: "PATCH",
+  });
+}
+
+export async function coreResubmitBusiness(
+  id: number | string,
+  formData: FormData,
+): Promise<any> {
+  return coreFetch(`/businesses/${id}/resubmit`, {
+    method: "PATCH",
+    body: formData,
+  });
+}
+
+// ─── Business Documents ──────────────────────────────────────────────────────
+
+export async function coreGetBusinessDocuments(
+  businessId: number | string,
+): Promise<any> {
+  return coreFetch(`/businesses/${businessId}/documents`, { method: "GET" });
+}
+
+export async function coreCreateBusinessDocument(
+  businessId: number | string,
+  formData: FormData,
+): Promise<any> {
+  return coreFetch(`/businesses/${businessId}/documents`, {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function coreDeleteBusinessDocument(
+  businessId: number | string,
+  documentId: number | string,
+): Promise<any> {
+  return coreFetch(`/businesses/${businessId}/documents/${documentId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function coreGetAddresses(): Promise<any> {
+  return coreFetch("/addresses", { method: "GET" });
+}
+
+export async function coreCreateAddress(
+  payload: Record<string, any>,
+): Promise<any> {
+  return coreFetch("/addresses", {
+    method: "POST",
+    body: JSON.stringify({ address: payload }),
+  });
+}
+
+export async function coreUpdateAddress(
+  id: number | string,
+  payload: Record<string, any>,
+): Promise<any> {
+  return coreFetch(`/addresses/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ address: payload }),
+  });
+}
+
+
 // ─── Supplier Products & Listings ────────────────────────────────────────────
+
+export async function publishSupplierProduct(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/supplier_products", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
 
 export async function marketGetMyProducts(): Promise<any> {
   return marketFetch("/supplier_products/my_products", { method: "GET" });
@@ -604,9 +707,18 @@ export async function marketGetProductInclusionRequests(): Promise<any> {
 
 // ─── Agent's Retailers ───────────────────────────────────────────────────────
 
-export async function marketGetMyRetailers(agentId?: number | string): Promise<any> {
-  const qs = agentId ? `?agent_id=${agentId}` : "";
-  return marketFetch(`/retailers/my_retailers${qs}`, { method: "GET" });
+/**
+ * Fetch retailers onboarded by the current agent.
+ * GET /marketplace/retailers/my_retailers
+ * 
+ * The agent is derived from the Bearer token (agent_id query param is no longer used).
+ */
+export async function marketGetMyRetailers(): Promise<any> {
+  return marketFetch(`/retailers/my_retailers`, { method: "GET" });
+}
+
+export async function marketGetRetailer(id: number | string): Promise<any> {
+  return marketFetch(`/retailers/${id}`, { method: "GET" });
 }
 
 // ─── Registration Endpoints ──────────────────────────────────────────────────
@@ -647,6 +759,55 @@ export async function marketRegisterSupplier(
     }
     throw err;
   }
+}
+
+export async function marketResubmitSupplier(
+  supplierId: number | string,
+  formData: FormData,
+): Promise<any> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Don't set Content-Type — let fetch set multipart boundary
+  const url = `${MARKET_URL}/suppliers/${supplierId}/resubmit`;
+  try {
+    console.log("[marketResubmitSupplier] POST", url);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        json?.message ||
+        (json?.errors
+          ? Array.isArray(json.errors)
+            ? json.errors.join("; ")
+            : JSON.stringify(json.errors)
+          : `Supplier resubmit failed (status ${res.status})`);
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error during supplier resubmit — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function marketGetSupplier(
+  supplierId: number | string,
+): Promise<any> {
+  return marketFetch(`/suppliers/${supplierId}`, { method: "GET" });
+}
+
+export async function marketGetMySuppliers(): Promise<any> {
+  return marketFetch("/suppliers/my_suppliers", { method: "GET" });
 }
 
 export async function marketRegisterAgent(
@@ -721,4 +882,149 @@ export async function marketRegisterRetailer(
     }
     throw err;
   }
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────────
+
+/**
+ * Create a new order on the marketplace.
+ * POST /marketplace/orders
+ */
+export async function marketCreateOrder(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/orders", {
+    method: "POST",
+    body: JSON.stringify({ order: payload }),
+  });
+}
+
+/**
+ * Agent creates an order on behalf of a retailer (assisted ordering).
+ * POST /marketplace/orders
+ * Includes agent_id and retailer_id in the payload.
+ */
+export async function marketCreateAssistedOrder(
+  payload: Record<string, any>,
+): Promise<any> {
+  return marketFetch("/orders", {
+    method: "POST",
+    body: JSON.stringify({ order: payload }),
+  });
+}
+
+/**
+ * Confirm agent order with OTP code.
+ * POST /marketplace/orders/:id/confirm_agent_order
+ * The retailer reads the OTP to the agent who enters it to confirm.
+ */
+export async function marketConfirmAgentOrder(
+  orderId: number | string,
+  otpCode: string,
+): Promise<any> {
+  return marketFetch(`/orders/${orderId}/confirm_agent_order`, {
+    method: "POST",
+    body: JSON.stringify({ otp_code: otpCode }),
+  });
+}
+
+/**
+ * Resend OTP for agent order confirmation.
+ * POST /marketplace/orders/:id/resend_agent_order_otp
+ * Generates a fresh code and invalidates the old one.
+ */
+export async function marketResendAgentOrderOtp(
+  orderId: number | string,
+): Promise<any> {
+  return marketFetch(`/orders/${orderId}/resend_agent_order_otp`, {
+    method: "POST",
+  });
+}
+
+/**
+ * Fetch current user's orders (ordered_by == current_user).
+ * GET /marketplace/orders/my_orders
+ */
+export async function marketGetMyOrders(
+  query?: Record<string, any>,
+): Promise<any> {
+  const qs = query
+    ? "?" +
+      Object.entries(query)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  return marketFetch(`/orders/my_orders${qs}`, { method: "GET" });
+}
+
+/**
+ * Fetch a specific order with full details.
+ * GET /marketplace/orders/:id
+ */
+export async function marketGetOrder(id: number | string): Promise<any> {
+  return marketFetch(`/orders/${id}`, { method: "GET" });
+}
+
+/**
+ * Fetch received orders (for suppliers/agents/retailers).
+ * GET /marketplace/orders/received
+ */
+export async function marketGetReceivedOrders(
+  query?: Record<string, any>,
+): Promise<any> {
+  const qs = query
+    ? "?" +
+      Object.entries(query)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join("&")
+    : "";
+  return marketFetch(`/orders/received${qs}`, { method: "GET" });
+}
+
+/**
+ * Retailer confirms an order (final confirmation step).
+ * POST /marketplace/orders/:id/retailer_confirm
+ */
+export async function marketRetailerConfirmOrder(
+  id: number | string,
+  payload?: { confirmed?: boolean; reason?: string },
+): Promise<any> {
+  const body: { confirmed: boolean; reason?: string } = {
+    confirmed: payload?.confirmed ?? true,
+  };
+  if (payload?.reason) {
+    body.reason = payload.reason;
+  }
+  return marketFetch(`/orders/${id}/retailer_confirm`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Supplier confirms an order.
+ * POST /marketplace/orders/:id/supplier_confirm
+ */
+export async function marketSupplierConfirmOrder(
+  id: number | string,
+  payload: { confirmed: boolean; reason?: string },
+): Promise<any> {
+  return marketFetch(`/orders/${id}/supplier_confirm`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Cancel an order.
+ * POST /marketplace/orders/:id/cancel
+ */
+export async function marketCancelOrder(
+  id: number | string,
+  reason?: string,
+): Promise<any> {
+  return marketFetch(`/orders/${id}/cancel`, {
+    method: "POST",
+    body: JSON.stringify(reason ? { reason } : {}),
+  });
 }

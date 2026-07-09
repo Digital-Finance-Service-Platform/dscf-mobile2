@@ -11,6 +11,7 @@ import {
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
+import { getOnboardingData } from "@/lib/onboarding-storage";
 
 export default function OtpVerificationScreen() {
   const router = useRouter();
@@ -101,6 +102,21 @@ export default function OtpVerificationScreen() {
 
     setLoading(false);
     
+    // For supplier, retrieve stored data to pass through
+    let supplierData: any = {};
+    if (role === "supplier") {
+      const storedData = await getOnboardingData();
+      if (storedData) {
+        supplierData = {
+          businessName: storedData.businessName,
+          contactName: storedData.contactName,
+          email: storedData.email,
+          latitude: storedData.latitude,
+          longitude: storedData.longitude,
+        };
+      }
+    }
+    
     // Navigate to password creation with all onboarding data
     router.push({
       pathname: "/onboarding/password" as any,
@@ -118,9 +134,7 @@ export default function OtpVerificationScreen() {
         tin,
         latitude,
         longitude,
-        businessName,
-        contactName,
-        email,
+        ...supplierData,
       },
     });
   };
