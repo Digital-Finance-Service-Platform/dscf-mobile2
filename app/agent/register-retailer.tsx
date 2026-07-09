@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -17,14 +18,30 @@ import {
 import { PageShell } from "@/components/page-shell";
 import { authSignup } from "@/lib/api/clients";
 
+type Coordinate = {
+  latitude: number;
+  longitude: number;
+};
+
+const DEFAULT_REGION = {
+  latitude: 9.0054,
+  longitude: 38.7636,
+  latitudeDelta: 0.08,
+  longitudeDelta: 0.08,
+};
+
 export default function AgentRegisterRetailerScreen() {
   const router = useRouter();
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
 
   const [step, setStep] = useState<"form" | "otp">("form");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
+  const [pin, setPin] = useState<Coordinate | null>(null);
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
   const [tinNumber, setTinNumber] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -36,10 +53,44 @@ export default function AgentRegisterRetailerScreen() {
     firstName.trim() &&
     lastName.trim() &&
     phone.trim() &&
-    location.trim() &&
+    pin !== null &&
     password &&
     passwordConfirmation &&
     password === passwordConfirmation;
+
+  const handleMapPress = (coordinate: Coordinate) => {
+    setPin(coordinate);
+  };
+
+  const handleUseCurrentLocation = async () => {
+    setIsLocating(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Denied",
+          "Location permission is needed to use current location"
+        );
+        setHasLocationPermission(false);
+        return;
+      }
+
+      setHasLocationPermission(true);
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const coordinate = {
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+      };
+      setPin(coordinate);
+      setUserLocation(coordinate);
+    } catch (error) {
+      Alert.alert("Error", "Unable to fetch current location. Try again.");
+    } finally {
+      setIsLocating(false);
+    }
+  };
 
   const handleSendOtp = () => {
     if (!isFormValid) {
@@ -93,7 +144,9 @@ export default function AgentRegisterRetailerScreen() {
         retailer: {
           name: `${firstName.trim()} ${lastName.trim()}`, // Use full name as retailer name
           phone: fullPhone,
-          location: location.trim(),
+          location: location.trim() || `${pin!.latitude.toFixed(5)}, ${pin!.longitude.toFixed(5)}`,
+          latitude: pin!.latitude,
+          longitude: pin!.longitude,
         },
       };
 
@@ -187,7 +240,54 @@ export default function AgentRegisterRetailerScreen() {
                 />
               </View>
 
-              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Location *</Text>
+              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
+                Retailer Shop Location on Map *
+              </Text>
+              <Text style={styles.mapHint}>
+                Tap the map to pin the exact location of the retailer's shop
+              </Text>
+
+              <View style={styles.mapContainer}>
+                <OpenStreetMapView
+                  initialRegion={DEFAULT_REGION}
+                  onPress={handleMapPress}
+                  marker={pin}
+                  style={styles.map}
+                  showsUserLocation={hasLocationPermission}
+                  userLocation={userLocation}
+                />
+              </View>
+
+              <Pressable
+                style={[styles.locationButton, isLocating && styles.buttonDisabled]}
+                onPress={handleUseCurrentLocation}
+                disabled={isLocating}
+              >
+                {isLocating ? (
+                  <ActivityIndicator color="#0a2f4a" />
+                ) : (
+                  <MaterialIcons name="my-location" size={18} color="#0a2f4a" />
+                )}
+                <Text style={styles.locationButtonText}>
+                  Use current location
+                </Text>
+              </Pressable>
+
+              {pin ? (
+                <View style={styles.locationInfo}>
+                  <MaterialIcons name="check-circle" size={16} color="#2e7d32" />
+                  <Text style={styles.locationInfoText}>
+                    Location selected: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}
+                  </Text>
+                </View>
+              ) : null}
+
+              <Text style={[styles.fieldLabel, { marginTop: 12 }]}>
+                Location Label (Optional)
+              </Text>
+              <Text style={styles.fieldHint}>
+                e.g., "Near Bole Road", "Merkato Area"
+              </Text>
               <View style={styles.inputBox}>
                 <MaterialIcons name="location-on" size={18} color="#0a2f4a" />
                 <TextInput
@@ -357,6 +457,61 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   continueText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  mapContainer: {
+    height: 220,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(10, 47, 74, 0.15)",
+    backgroundColor: "#e5ebe7",
+    marginTop: 8,
+  },
+  map: { flex: 1 },
+  webFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  webFallbackText: { color: "#6b6b6b", fontSize: 13 },
+  mapHint: {
+    color: "#6b6b6b",
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  fieldHint: {
+    color: "#8a8a8a",
+    fontSize: 12,
+    marginTop: 2,
+    marginBottom: 6,
+  },
+  locationButton: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(10, 47, 74, 0.2)",
+    backgroundColor: "#fff",
+  },
+  locationButtonText: { marginLeft: 8, color: "#0a2f4a", fontWeight: "500" },
+  locationInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: "#e8f5e9",
+    borderRadius: 8,
+  },
+  locationInfoText: {
+    marginLeft: 8,
+    color: "#2e7d32",
+    fontSize: 12,
+    flex: 1,
+  },
   otpContainer: {
     alignItems: "center",
     marginTop: 20,

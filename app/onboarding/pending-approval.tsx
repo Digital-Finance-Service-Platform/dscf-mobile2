@@ -1,16 +1,19 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { AppState, Pressable, StyleSheet, View } from "react-native";
 
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
+import { useSdk } from "@/lib/sdk/context";
 
 type ApprovalStatus = "pending" | "approved" | "rejected" | "needs_update";
 
 export default function PendingApprovalScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user, fetchUser } = useSdk();
+  const appState = useRef(AppState.currentState);
   
   const role = Array.isArray(params.role) ? params.role[0] : params.role;
   const status = (Array.isArray(params.status) ? params.status[0] : params.status) as ApprovalStatus || "pending";
@@ -18,6 +21,69 @@ export default function PendingApprovalScreen() {
   const reason = Array.isArray(params.reason) ? params.reason[0] : params.reason;
 
   const roleTitle = role === "supplier" ? "Supplier" : "Agent";
+
+  // Poll for review status changes when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        // App has come to the foreground — refresh user data
+        console.log("[PendingApproval] App foregrounded, refreshing user data");
+        await fetchUser();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchUser]);
+
+  // Check if review status changed
+  useEffect(() => {
+    if (!user?.review_status) return;
+
+    const currentStatus = user.review_status.status;
+    const entityId = user.review_status.entity_id;
+
+    // Only redirect if the status in params doesn't match the current status
+    // This prevents redirecting when first landing on the page
+    
+    // If status changed to 'modify', redirect to changes-requested
+    if (currentStatus === "modify" && status === "pending") {
+      console.log("[PendingApproval] Status changed to modify, redirecting");
+      router.replace({
+        pathname: "/onboarding/changes-requested" as any,
+        params: { role, entityId: String(entityId) },
+      });
+      return;
+    }
+
+    // If status changed to 'approved', redirect appropriately
+    if (currentStatus === "approved" && (status === "pending" || status === "under_review")) {
+      console.log("[PendingApproval] Status changed to approved, redirecting");
+      if (role === "supplier") {
+        router.replace("/supplier/dashboard" as any);
+      } else if (role === "agent") {
+        router.replace("/agent/retailers");
+      } else {
+        router.replace("/(tabs)");
+      }
+      return;
+    }
+
+    // If status changed to 'rejected', redirect to rejected screen
+    if (currentStatus === "rejected" && (status === "pending" || status === "under_review")) {
+      console.log("[PendingApproval] Status changed to rejected, redirecting");
+      router.replace({
+        pathname: "/onboarding/rejected" as any,
+        params: { role },
+      });
+      return;
+    }
+  }, [user, status, role, router]);
 
   const getStatusConfig = () => {
     switch (status) {

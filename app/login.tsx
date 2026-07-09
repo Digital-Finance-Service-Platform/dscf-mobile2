@@ -52,28 +52,59 @@ export default function LoginScreen() {
       // Agents go to agent retailers page
       // Agent role takes priority — agents may have businesses.* permissions but are NOT suppliers
       if (isAgent) {
-        if (reviewStatus && (reviewStatus.status === "pending" || reviewStatus.status === "under_review")) {
+        const status = reviewStatus?.status;
+        if (status === "pending" || status === "under_review") {
           router.replace({
             pathname: "/onboarding/pending-approval" as any,
-            params: { role: "agent", status: reviewStatus.status },
+            params: { role: "agent", status },
           });
-        } else {
-          // Verified agents go to agent retailers page
-          router.replace("/agent/retailers");
+          return;
         }
+        if (status === "modify") {
+          router.replace({
+            pathname: "/onboarding/changes-requested" as any,
+            params: { role: "agent", entityId: String(reviewStatus.entity_id) },
+          });
+          return;
+        }
+        if (status === "rejected") {
+          router.replace({
+            pathname: "/onboarding/rejected" as any,
+            params: { role: "agent" },
+          });
+          return;
+        }
+        // Verified agents go to agent retailers page
+        router.replace("/agent/retailers");
         return;
       }
 
       // Suppliers go to supplier dashboard
       if (isSupplier && !isRetailer) {
-        if (reviewStatus && (reviewStatus.status === "pending" || reviewStatus.status === "under_review")) {
+        const status = reviewStatus?.status;
+        if (status === "pending" || status === "under_review") {
           router.replace({
             pathname: "/onboarding/pending-approval" as any,
-            params: { role: "supplier", status: reviewStatus.status },
+            params: { role: "supplier", status },
           });
-        } else {
-          router.replace("/supplier/dashboard" as any);
+          return;
         }
+        if (status === "modify") {
+          router.replace({
+            pathname: "/onboarding/changes-requested" as any,
+            params: { role: "supplier", entityId: String(reviewStatus.entity_id) },
+          });
+          return;
+        }
+        if (status === "rejected") {
+          router.replace({
+            pathname: "/onboarding/rejected" as any,
+            params: { role: "supplier" },
+          });
+          return;
+        }
+        // Approved or draft — proceed to dashboard
+        router.replace("/supplier/dashboard" as any);
         return;
       }
 
@@ -89,7 +120,23 @@ export default function LoginScreen() {
           });
           return;
         }
-        // For rejected/modify/verified/approved — proceed to home
+        if (status === "modify") {
+          const reviewType = reviewStatus.type || "user";
+          router.replace({
+            pathname: "/onboarding/changes-requested" as any,
+            params: { role: reviewType, entityId: String(reviewStatus.entity_id) },
+          });
+          return;
+        }
+        if (status === "rejected") {
+          const reviewType = reviewStatus.type || "user";
+          router.replace({
+            pathname: "/onboarding/rejected" as any,
+            params: { role: reviewType },
+          });
+          return;
+        }
+        // For verified/approved/draft — proceed to home
       }
 
       router.replace("/(tabs)");

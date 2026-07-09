@@ -1,17 +1,16 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    TextInput,
+    View
 } from "react-native";
-import MapView, { Marker, UrlTile, type MapPressEvent } from "react-native-maps";
 
+import { OpenStreetMapView } from "@/components/openstreetmap-view";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 
@@ -35,8 +34,8 @@ export default function OnboardingDropoffScreen() {
   const roleParam = Array.isArray(params.role) ? params.role[0] : params.role;
   const role: RoleKey = roleParam === "retailor" ? "retailor" : "customer";
 
-  const mapRef = useRef<MapView>(null);
   const [pin, setPin] = useState<Coordinate | null>(null);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
   const [label, setLabel] = useState("");
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -47,8 +46,8 @@ export default function OnboardingDropoffScreen() {
     [role]
   );
 
-  const handleMapPress = (event: MapPressEvent) => {
-    setPin(event.nativeEvent.coordinate);
+  const handleMapPress = (coordinate: Coordinate) => {
+    setPin(coordinate);
   };
 
   const handleUseCurrentLocation = async () => {
@@ -74,14 +73,7 @@ export default function OnboardingDropoffScreen() {
         longitude: current.coords.longitude,
       };
       setPin(coordinate);
-      mapRef.current?.animateToRegion(
-        {
-          ...coordinate,
-          latitudeDelta: DEFAULT_REGION.latitudeDelta,
-          longitudeDelta: DEFAULT_REGION.longitudeDelta,
-        },
-        600
-      );
+      setUserLocation(coordinate);
     } catch (error) {
       setLocationError("Unable to fetch current location. Try again.");
     } finally {
@@ -131,34 +123,14 @@ export default function OnboardingDropoffScreen() {
       </ThemedText>
 
       <View style={styles.mapContainer}>
-        {Platform.OS === "web" ? (
-          <View style={styles.webFallback}>
-            <MaterialIcons name="map" size={28} color="#8a1d1d" />
-            <ThemedText type="default" style={styles.webFallbackText}>
-              Map preview is not available on web.
-            </ThemedText>
-          </View>
-        ) : (
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            initialRegion={DEFAULT_REGION}
-            onPress={handleMapPress}
-            showsUserLocation={hasLocationPermission}
-            mapType="none"
-          >
-            <UrlTile
-              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-            />
-            {pin ? (
-              <Marker coordinate={pin} />
-            ) : (
-              <Marker coordinate={DEFAULT_REGION} opacity={0.4} />
-            )}
-          </MapView>
-        )}
+        <OpenStreetMapView
+          initialRegion={DEFAULT_REGION}
+          onPress={handleMapPress}
+          marker={pin}
+          style={styles.map}
+          showsUserLocation={hasLocationPermission}
+          userLocation={userLocation}
+        />
       </View>
 
       <Pressable

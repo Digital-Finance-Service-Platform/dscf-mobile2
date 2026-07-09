@@ -1,18 +1,17 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View
 } from "react-native";
-import MapView, { Marker, UrlTile, type MapPressEvent } from "react-native-maps";
 
+import { OpenStreetMapView } from "@/components/openstreetmap-view";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 
@@ -30,7 +29,7 @@ const DEFAULT_REGION = {
 
 export default function OnboardingRetailorScreen() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -56,8 +55,8 @@ export default function OnboardingRetailorScreen() {
     );
   }, [firstName, lastName, phone, gender, pin]);
 
-  const handleMapPress = (event: MapPressEvent) => {
-    setPin(event.nativeEvent.coordinate);
+  const handleMapPress = (coordinate: Coordinate) => {
+    setPin(coordinate);
   };
 
   const handleUseCurrentLocation = async () => {
@@ -77,14 +76,7 @@ export default function OnboardingRetailorScreen() {
         longitude: current.coords.longitude,
       };
       setPin(coordinate);
-      mapRef.current?.animateToRegion(
-        {
-          ...coordinate,
-          latitudeDelta: DEFAULT_REGION.latitudeDelta,
-          longitudeDelta: DEFAULT_REGION.longitudeDelta,
-        },
-        600
-      );
+      setUserLocation(coordinate);
     } catch (error) {
       console.error("Location error:", error);
     } finally {
@@ -221,34 +213,14 @@ export default function OnboardingRetailorScreen() {
         </ThemedText>
 
         <View style={styles.mapContainer}>
-          {Platform.OS === "web" ? (
-            <View style={styles.webFallback}>
-              <MaterialIcons name="map" size={28} color="#8a1d1d" />
-              <ThemedText type="default" style={styles.webFallbackText}>
-                Map preview not available on web
-              </ThemedText>
-            </View>
-          ) : (
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={DEFAULT_REGION}
-              onPress={handleMapPress}
-              showsUserLocation={hasLocationPermission}
-              mapType="none"
-            >
-              <UrlTile
-                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-                flipY={false}
-              />
-              {pin ? (
-                <Marker coordinate={pin} />
-              ) : (
-                <Marker coordinate={DEFAULT_REGION} opacity={0.4} />
-              )}
-            </MapView>
-          )}
+          <OpenStreetMapView
+            initialRegion={DEFAULT_REGION}
+            onPress={handleMapPress}
+            marker={pin}
+            style={styles.map}
+            showsUserLocation={hasLocationPermission}
+            userLocation={userLocation}
+          />
         </View>
 
         <Pressable

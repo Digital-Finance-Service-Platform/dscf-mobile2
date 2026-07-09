@@ -711,6 +711,55 @@ export async function marketRegisterSupplier(
   }
 }
 
+export async function marketResubmitSupplier(
+  supplierId: number | string,
+  formData: FormData,
+): Promise<any> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // Don't set Content-Type — let fetch set multipart boundary
+  const url = `${MARKET_URL}/suppliers/${supplierId}/resubmit`;
+  try {
+    console.log("[marketResubmitSupplier] POST", url);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg =
+        json?.message ||
+        (json?.errors
+          ? Array.isArray(json.errors)
+            ? json.errors.join("; ")
+            : JSON.stringify(json.errors)
+          : `Supplier resubmit failed (status ${res.status})`);
+      throw new Error(msg);
+    }
+    return json;
+  } catch (err: any) {
+    const message = err?.message || String(err);
+    if (message.toLowerCase().includes("network")) {
+      throw new Error(
+        `Network error during supplier resubmit — ${message}`,
+      );
+    }
+    throw err;
+  }
+}
+
+export async function marketGetSupplier(
+  supplierId: number | string,
+): Promise<any> {
+  return marketFetch(`/suppliers/${supplierId}`, { method: "GET" });
+}
+
+export async function marketGetMySuppliers(): Promise<any> {
+  return marketFetch("/suppliers/my_suppliers", { method: "GET" });
+}
+
 export async function marketRegisterAgent(
   payload: Record<string, any>,
 ): Promise<any> {

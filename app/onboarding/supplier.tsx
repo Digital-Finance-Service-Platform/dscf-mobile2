@@ -2,18 +2,17 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    View
 } from "react-native";
-import MapView, { Marker, UrlTile, type MapPressEvent } from "react-native-maps";
 
+import { OpenStreetMapView } from "@/components/openstreetmap-view";
 import { PageShell } from "@/components/page-shell";
 import { ThemedText } from "@/components/themed-text";
 
@@ -33,13 +32,12 @@ const DEFAULT_REGION = {
 
 export default function OnboardingSupplierScreen() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
 
   // Required fields
   const [businessName, setBusinessName] = useState("");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState<"male" | "female" | "">("");
   const [pin, setPin] = useState<Coordinate | null>(null);
   const [licenseFile, setLicenseFile] = useState<UploadAsset | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -56,15 +54,14 @@ export default function OnboardingSupplierScreen() {
       !businessName.trim() ||
       !contactName.trim() ||
       !phone.trim() ||
-      !gender ||
       !pin ||
       !licenseFile ||
       !termsAccepted
     );
-  }, [businessName, contactName, phone, gender, pin, licenseFile, termsAccepted]);
+  }, [businessName, contactName, phone, pin, licenseFile, termsAccepted]);
 
-  const handleMapPress = (event: MapPressEvent) => {
-    setPin(event.nativeEvent.coordinate);
+  const handleMapPress = (coordinate: Coordinate) => {
+    setPin(coordinate);
   };
 
   const handleUseCurrentLocation = async () => {
@@ -84,14 +81,7 @@ export default function OnboardingSupplierScreen() {
         longitude: current.coords.longitude,
       };
       setPin(coordinate);
-      mapRef.current?.animateToRegion(
-        {
-          ...coordinate,
-          latitudeDelta: DEFAULT_REGION.latitudeDelta,
-          longitudeDelta: DEFAULT_REGION.longitudeDelta,
-        },
-        600
-      );
+      setUserLocation(coordinate);
     } catch (error) {
       console.error("Location error:", error);
     } finally {
@@ -139,7 +129,6 @@ export default function OnboardingSupplierScreen() {
         businessName,
         contactName,
         phone,
-        gender,
         latitude: pin?.latitude,
         longitude: pin?.longitude,
         email,
@@ -204,89 +193,20 @@ export default function OnboardingSupplierScreen() {
           />
         </View>
 
-        <FieldLabel label="Gender" required />
-        <View style={styles.genderRow}>
-          <Pressable
-            style={[
-              styles.genderButton,
-              gender === "male" && styles.genderButtonActive,
-            ]}
-            onPress={() => setGender("male")}
-          >
-            <MaterialIcons
-              name={gender === "male" ? "radio-button-checked" : "radio-button-unchecked"}
-              size={20}
-              color={gender === "male" ? "#0a2f4a" : "#6b6b6b"}
-            />
-            <ThemedText
-              type="default"
-              style={[
-                styles.genderText,
-                gender === "male" && styles.genderTextActive,
-              ]}
-            >
-              Male
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.genderButton,
-              gender === "female" && styles.genderButtonActive,
-            ]}
-            onPress={() => setGender("female")}
-          >
-            <MaterialIcons
-              name={gender === "female" ? "radio-button-checked" : "radio-button-unchecked"}
-              size={20}
-              color={gender === "female" ? "#0a2f4a" : "#6b6b6b"}
-            />
-            <ThemedText
-              type="default"
-              style={[
-                styles.genderText,
-                gender === "female" && styles.genderTextActive,
-              ]}
-            >
-              Female
-            </ThemedText>
-          </Pressable>
-        </View>
-
         <FieldLabel label="Shop Location on Map" required />
         <ThemedText type="default" style={styles.mapHint}>
           Tap the map to place a pin at your business location
         </ThemedText>
 
         <View style={styles.mapContainer}>
-          {Platform.OS === "web" ? (
-            <View style={styles.webFallback}>
-              <MaterialIcons name="map" size={28} color="#8a1d1d" />
-              <ThemedText type="default" style={styles.webFallbackText}>
-                Map preview not available on web
-              </ThemedText>
-            </View>
-          ) : (
-            <MapView
-              ref={mapRef}
-              style={styles.map}
-              initialRegion={DEFAULT_REGION}
-              onPress={handleMapPress}
-              showsUserLocation={hasLocationPermission}
-              mapType="none"
-            >
-              <UrlTile
-                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-                flipY={false}
-              />
-              {pin ? (
-                <Marker coordinate={pin} />
-              ) : (
-                <Marker coordinate={DEFAULT_REGION} opacity={0.4} />
-              )}
-            </MapView>
-          )}
+          <OpenStreetMapView
+            initialRegion={DEFAULT_REGION}
+            onPress={handleMapPress}
+            marker={pin}
+            style={styles.map}
+            showsUserLocation={hasLocationPermission}
+            userLocation={userLocation}
+          />
         </View>
 
         <Pressable
@@ -517,35 +437,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   infoText: { marginLeft: 8, color: "#2e7d32", fontSize: 12 },
-  genderRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  genderButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(10, 47, 74, 0.2)",
-    backgroundColor: "#fff",
-  },
-  genderButtonActive: {
-    borderColor: "#0a2f4a",
-    borderWidth: 2,
-    backgroundColor: "rgba(10, 47, 74, 0.05)",
-  },
-  genderText: {
-    marginLeft: 8,
-    color: "#6b6b6b",
-  },
-  genderTextActive: {
-    color: "#0a2f4a",
-    fontWeight: "600",
-  },
   uploadRow: {
     flexDirection: "row",
     alignItems: "center",
